@@ -51,7 +51,7 @@ def main():
 
     features = ['Expenditure', 'Income', 'Squad Value', 'Avg. Squad Age',
                 'Goals For', 'Goals Against']
-    target_var = 'Season Result'
+    target_var = 'Points per game'
 
     # cleaning the data in the feature columns
     for f in features:
@@ -59,6 +59,7 @@ def main():
             df[f] = clean_data(df[f])
 
     ### 3. handling missing feature values ###
+    df = df.dropna(subset=[target_var])
     df_scaled = df.copy()
     # ensuring numeric
     df_scaled[features] = df_scaled[features].apply(pd.to_numeric, errors='coerce')
