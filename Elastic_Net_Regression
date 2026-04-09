@@ -1,0 +1,146 @@
+"""
+Elastic net regression 
+"""
+
+import pandas as pd
+import numpy as np
+import re
+from sklearn.linear_model import ElasticNetCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.model_selection import cross_val_score, KFold
+from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.pipeline import Pipeline
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import seaborn as sns
+
+# load 
+SHEET_MAP = {"Premier_League": "Premier_League", 
+             "Championship": "Championship", 
+             "League_One": "League_One",
+             "League_Two": "League_Two",}
+
+
+def parse_money(val):
+    if pd.isna(val) or str(val).strip() == '':
+        return np.nan
+    try:
+        x = str(val).lower()
+        x = re.sub(r'[^0-9kmbn\.-]', '', x)
+        if x.endswith('bn'):
+            return float(x[:-2]) * 1_000_000_000
+        elif x.endswith('m'):
+            return float(x[:-1]) * 1_000_000
+        elif x.endswith('k'):
+            return float(x[:-1]) * 1_000
+        else:
+            return float(x)
+    except ValueError:
+        return np.nan
+
+def load_sheet(sheet, league_name):
+    df = pd.read_excel("dataset.ods", engine = "odf", sheet_name = sheet)
+    df["League"] = league_name 
+    rename = {}
+    for c in df.columns:
+        cl = c.lower()
+        if "goals for" in cl: rename[c] = "GoalsFor"
+        if "goals against" in cl: rename[c] = "GoalsAgainst"
+        if "avg" in cl and "age" in cl: rename[c] = "AvgAge"
+        if "season result" in cl: rename[c] = "Points"
+        if "points per game" in cl: rename[c] = "PointsPerGame"
+        if "squad value" in cl: rename[c] = "SquadValue_raw"
+        if "expenditure" in cl: rename[c] = "Expenditure_raw"
+        if "income" in cl: rename[c] = "Income_raw"
+
+    df.rename(columns=rename, inplace=True)
+    df["Club"] = df["Club"].astype(str).str.strip()
+    for raw, clean in [("SquadValue_raw", "SquadValue_m"),
+                       ("Expenditure_raw", "Expenditure_m"),
+                       ("Income_raw", "Income_m")]:
+        df[clean] = df[raw].apply(parse_money) if raw in df.columns else np.nan 
+    return df 
+
+dfs = [load_sheet(s, n) for s, n in SHEET_MAP.items()]
+all_df = pd.concat(dfs, ignore_index=True)
+all_df["SeasonYear"] = all_df["Season"].str[:4].astype(int)
+all_df["NetSpend_m"] = all_df["Expenditure_m"] - all_df["Income_m"]
+
+# features
+# Rows with missing data in any feature are dropped per league
+
+FEATURES = ["GoalsFor", 
+            "GoalsAgainst",
+            "AvgAge", 
+            #"SeasonYear", 
+            "SquadValue_m", 
+            "Expenditure_m",
+            "Income_m", 
+            #"NetSpend_m"
+            ]
+
+TARGET = "PointsPerGame"
+LEAGUES = list(SHEET_MAP.values())
+
+FEAT_LABELS = {"GoalsFor": "Goals Scored",
+               "GoalsAgainst": "Goald Conceeded", 
+               "AvgAge": "Avg Squad Age", 
+               "SeasonYear": "Season Year",
+               "SquadValue_m": "Squad Value",
+               "Expenditure_m": "Expenditure", 
+               "Income_m": "Income",
+               "NetSpend_m": "Net Spend"
+}
+
+# per league elastic net 
+
+alphas = np.logspace(-3, 2, 60)
+l1_ratios = [0.1, 0.3, 0.5, 0.7, 0.9, 0.95, 1.0]
+cv = KFold(n_splits=5, shuffle=True, random_state=42)
+
+results = {}
+
+for league in LEAGUES:
+    sub = all_df[all_df["League"] == league].dropna(subset=[TARGET])
+    print(f"\n{league}: {len(sub)} rows (of {(all_df['League']==league).sum()} total)")
+
+    if len(sub) < 10:
+        print(f"WARNING: not enough data to fit model")
+        results[league] = None
+        continue 
+
+    X = sub[FEATURES].values.astype(float)
+    y = sub[TARGET].values.astype(float)
+
+    pipe = Pipeline([("imputer", SimpleImputer(strategy="mean")),
+                     ("scaler", StandardScaler()),
+                     ("en", ElasticNetCV(alphas=alphas, l1_ratio=l1_ratios, cv=cv, max_iter=10000))
+                     ])
+    pipe.fit(X, y)
+    cv_r2 = cross_val_score(pipe, X, y, cv=cv, scoring="r2")
+    y_pred = pipe.predict(X)
+
+    results[league] = {
+        "cv_r2_mean": cv_r2.mean(),
+        "cv_r2_std":  cv_r2.std(),
+        "alpha":      pipe.named_steps["en"].alpha_,
+        "l1_ratio":   pipe.named_steps["en"].l1_ratio_,
+        "coef_df":    pd.DataFrame({"Feature": FEATURES,
+                                    "Coefficient": pipe.named_steps["en"].coef_}),
+        "rmse":       np.sqrt(mean_squared_error(y, y_pred)),
+        "r2_train":   r2_score(y, y_pred),
+        "y":          y,
+        "ypred":      y_pred,
+        "n":          len(sub),
+    }
+ 
+    print(f"  CV R²    : {cv_r2.mean():.3f} ± {cv_r2.std():.3f}")
+    print(f"  RMSE     : {np.sqrt(mean_squared_error(y, y_pred)):.2f} ppg")
+    print(f"  alpha    : {pipe.named_steps['en'].alpha_:.4f}")
+    print(f"  l1_ratio : {pipe.named_steps['en'].l1_ratio_:.2f}")
+    print("  Coefficients:")
+    for feat, coef in zip(FEATURES, pipe.named_steps["en"].coef_):
+        status = "<- active" if abs(coef) > 0 else "  zeroed"
+        print(f"    {feat:<22} {coef:+.4f}  {status}")
+ 
