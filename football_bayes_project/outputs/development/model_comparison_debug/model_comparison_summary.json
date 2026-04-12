@@ -1,0 +1,19 @@
+[
+  {
+    "model_name":"normal_varying_slopes",
+    "mode":"development",
+    "predictor_timing":"previous_season",
+    "holdout_season":"2024\/25",
+    "overall_rmse":13.7146271363,
+    "overall_mae":11.1193819855,
+    "overall_r2":0.2984035157,
+    "overall_prediction_interval_coverage":0.9404761905,
+    "mean_league_rmse":13.5069040097,
+    "mean_league_mae":10.9977417527,
+    "mean_league_r2":0.2544586289,
+    "mean_league_prediction_interval_coverage":0.9424342105,
+    "num_leagues_with_holdout":4,
+    "divergences":0,
+    "max_rhat":1.0059391043
+  }
+]

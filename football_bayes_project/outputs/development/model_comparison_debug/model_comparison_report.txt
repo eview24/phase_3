@@ -1,0 +1,10 @@
+Bayesian normal-formulation debugging run
+Question focus: previous-season factors by league
+Mode: development
+Holdout season: 2024/25
+
+           model_name        mode predictor_timing holdout_season  overall_rmse  overall_mae  overall_r2  overall_prediction_interval_coverage  mean_league_rmse  mean_league_mae  mean_league_r2  mean_league_prediction_interval_coverage  num_leagues_with_holdout  divergences  max_rhat
+normal_varying_slopes development  previous_season        2024/25     13.714627    11.119382    0.298404                              0.940476         13.506904        10.997742        0.254459                                  0.942434                         4            0  1.005939
+
+Per-model debug outputs saved under:
+C:\Users\crist\Downloads\football_bayes_project\football_bayes_project\outputs\development\model_comparison_debug

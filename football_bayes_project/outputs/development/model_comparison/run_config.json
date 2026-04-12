@@ -1,0 +1,11 @@
+{
+  "mode": "development",
+  "draws": 50,
+  "tune": 50,
+  "chains": 2,
+  "target_accept": 0.85,
+  "random_seed": 42,
+  "progressbar": true,
+  "output_dir": "C:\\Users\\crist\\Downloads\\football_bayes_project\\football_bayes_project\\outputs\\development",
+  "holdout_season": "2024/25"
+}

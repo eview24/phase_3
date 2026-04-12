@@ -1,0 +1,32 @@
+[
+  {
+    "model_name":"normal_varying_slopes",
+    "mode":"development",
+    "predictor_timing":"previous_season",
+    "holdout_season":"2024\/25",
+    "overall_rmse":1967.5720414778,
+    "overall_mae":1867.780592388,
+    "overall_r2":-14439.4484324923,
+    "mean_league_rmse":1897.0366252889,
+    "mean_league_mae":1894.6275304958,
+    "mean_league_r2":-15019.0521010632,
+    "num_leagues_with_holdout":4,
+    "divergences":0,
+    "max_rhat":1.2285980246
+  },
+  {
+    "model_name":"student_t_varying_slopes",
+    "mode":"development",
+    "predictor_timing":"previous_season",
+    "holdout_season":"2024\/25",
+    "overall_rmse":2052.2596674726,
+    "overall_mae":1952.1505038128,
+    "overall_r2":-15709.2832324785,
+    "mean_league_rmse":1981.8334283227,
+    "mean_league_mae":1979.3276604132,
+    "mean_league_r2":-16402.2298304567,
+    "num_leagues_with_holdout":4,
+    "divergences":0,
+    "max_rhat":1.0712874758
+  }
+]

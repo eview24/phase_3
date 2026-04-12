@@ -1,0 +1,46 @@
+{
+  "mode": "development",
+  "holdout_season": "2024/25",
+  "predictor_timing": "previous_season",
+  "feature_cols": [
+    "Prev Expenditure",
+    "Prev Income",
+    "Prev Squad Value",
+    "Prev Avg. Squad Age",
+    "Prev Goals For",
+    "Prev Goals Against",
+    "Prev Season Result",
+    "Prev Expenditure_missing",
+    "Prev Income_missing"
+  ],
+  "continuous_cols": [
+    "Prev Expenditure",
+    "Prev Income",
+    "Prev Squad Value",
+    "Prev Avg. Squad Age",
+    "Prev Goals For",
+    "Prev Goals Against",
+    "Prev Season Result"
+  ],
+  "imputation_group_col": "Prev League",
+  "x_means": {
+    "Prev Expenditure": 14.412183583839603,
+    "Prev Income": 14.389466625898757,
+    "Prev Squad Value": 16.71033289906042,
+    "Prev Avg. Squad Age": 25.961286254728883,
+    "Prev Goals For": 56.745271122320304,
+    "Prev Goals Against": 56.131147540983605,
+    "Prev Season Result": 60.138713745271126
+  },
+  "x_stds": {
+    "Prev Expenditure": 2.637224415074193,
+    "Prev Income": 3.0647274388399772,
+    "Prev Squad Value": 2.051995820391593,
+    "Prev Avg. Squad Age": 1.1702981835452508,
+    "Prev Goals For": 14.122325650407136,
+    "Prev Goals Against": 12.862440459155696,
+    "Prev Season Result": 16.264416351426533
+  },
+  "y_mean": 59.57755359394704,
+  "y_std": 16.754446132882517
+}

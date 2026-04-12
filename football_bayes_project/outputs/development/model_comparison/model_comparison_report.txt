@@ -1,0 +1,24 @@
+Bayesian formulation comparison
+Question focus: previous-season factors by league
+Mode: development
+Holdout season: 2024/25
+
+Formulations compared:
+- normal_varying_slopes
+- student_t_varying_slopes
+
+Ranking priority:
+1. mean_league_rmse
+2. overall_rmse
+3. mean_league_mae
+4. overall_mae
+5. overall_r2
+6. max_rhat
+7. divergences
+
+Recommended formulation:
+normal_varying_slopes
+
+              model_name        mode predictor_timing holdout_season  overall_rmse  overall_mae    overall_r2  mean_league_rmse  mean_league_mae  mean_league_r2  num_leagues_with_holdout  divergences  max_rhat
+   normal_varying_slopes development  previous_season        2024/25   1967.572041  1867.780592 -14439.448432       1897.036625       1894.62753   -15019.052101                         4            0  1.228598
+student_t_varying_slopes development  previous_season        2024/25   2052.259667  1952.150504 -15709.283232       1981.833428       1979.32766   -16402.229830                         4            0  1.071287

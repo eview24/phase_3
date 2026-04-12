@@ -1,0 +1,24 @@
+Model: student_t_varying_slopes
+Predictor timing: previous season
+Holdout season: 2024/25
+
+Overall holdout metrics
+RMSE: 2052.259667
+MAE: 1952.150504
+R2: -15709.283232
+
+Mean per-league holdout metrics
+Mean league RMSE: 1981.8334283226586
+Mean league MAE: 1979.3276604131916
+Mean league R2: -16402.229830456654
+
+Sampler diagnostics
+Divergences: 0
+Max R-hat: 1.071287
+
+League-level metrics
+        League  train_rows  holdout_rows        rmse         mae            r2
+  Championship         208            19 1934.767307 1931.829404 -13392.927723
+    League One         208            24 2072.452220 2069.220301 -12807.324662
+    League Two         198            22 1069.078896 1068.546208  -7518.683111
+Premier League         179            19 2851.035290 2847.714729 -31889.983825

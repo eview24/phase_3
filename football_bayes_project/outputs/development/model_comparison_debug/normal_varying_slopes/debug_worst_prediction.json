@@ -1,0 +1,21 @@
+{
+  "model_name": "normal_varying_slopes",
+  "worst_row_index": 1,
+  "club": "Wrexham AFC",
+  "league": "League One",
+  "season": "2024/25",
+  "prev_season": "2023/24",
+  "actual_season_result": 92.0,
+  "predicted_season_result": 56.44192863362112,
+  "prediction_hdi_lower": 28.627562341845756,
+  "prediction_hdi_upper": 83.94393118160406,
+  "within_prediction_interval": false,
+  "residual": 35.55807136637888,
+  "abs_residual": 35.55807136637888,
+  "alpha_mean": 1.0246825581834196,
+  "sum_of_beta_contributions": -1.2151016389087206,
+  "pred_std": -0.190419080725301,
+  "y_mean": 59.57755359394704,
+  "y_std": 16.754446132882517,
+  "reconstructed_prediction": 56.38718736326197
+}

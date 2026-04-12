@@ -1,0 +1,13 @@
+{
+  "num_holdout_rows": 84,
+  "actual_min": 22.0,
+  "actual_max": 111.0,
+  "actual_mean": 60.63095238095238,
+  "predicted_min": 29.578986452133616,
+  "predicted_max": 85.71047033133748,
+  "predicted_mean": 62.01210016072712,
+  "residual_min": -34.405973509390364,
+  "residual_max": 35.55807136637888,
+  "residual_mean": -1.3811477797747393,
+  "prediction_interval_coverage": 0.9404761904761905
+}

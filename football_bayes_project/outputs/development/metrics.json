@@ -1,0 +1,14 @@
+{
+  "mode": "development",
+  "train_rows": 793,
+  "holdout_rows": 84,
+  "holdout_season": "2024/25",
+  "predictor_timing": "previous_season",
+  "rmse": 13.714627136289701,
+  "mae": 11.119381985464633,
+  "r2": 0.2984035157418845,
+  "prediction_interval_coverage": 0.9404761904761905,
+  "prediction_interval_probability": 0.94,
+  "divergences": 0,
+  "max_rhat": 1.005939104267184
+}

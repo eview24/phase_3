@@ -1,0 +1,9 @@
+{
+  "League": "League One",
+  "train_rows": 208,
+  "holdout_rows": 24,
+  "rmse": 16.058190746000008,
+  "mae": 13.547320743201128,
+  "r2": 0.23101742534318015,
+  "prediction_interval_coverage": 0.875
+}

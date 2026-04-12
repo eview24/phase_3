@@ -1,0 +1,12 @@
+{
+  "model_name": "normal_varying_intercepts",
+  "mode": "development",
+  "likelihood": "normal",
+  "hierarchy": "varying_intercepts_only",
+  "holdout_season": "2024/25",
+  "rmse": 65.89505527242213,
+  "mae": 65.21800285420379,
+  "r2": -14.784058478271175,
+  "divergences": 0,
+  "max_rhat": 1.0414720798718546
+}

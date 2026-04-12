@@ -1,0 +1,2 @@
+model_name,mode,predictor_timing,holdout_season,overall_rmse,overall_mae,overall_r2,overall_prediction_interval_coverage,mean_league_rmse,mean_league_mae,mean_league_r2,mean_league_prediction_interval_coverage,num_leagues_with_holdout,divergences,max_rhat
+normal_varying_slopes,development,previous_season,2024/25,13.714627136289701,11.119381985464633,0.2984035157418845,0.9404761904761905,13.50690400965274,10.99774175265808,0.2544586288815267,0.9424342105263157,4,0,1.005939104267184

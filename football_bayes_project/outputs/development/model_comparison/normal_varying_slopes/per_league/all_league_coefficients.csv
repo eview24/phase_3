@@ -1,0 +1,37 @@
+League,Feature,MeanCoefficient
+Championship,Prev Goals Against,-0.30192219431090916
+Championship,Prev Season Result,-0.23057176906171772
+Championship,Prev Income,-0.22358827877099952
+Championship,Prev Expenditure_missing,-0.15362327824528632
+Championship,Prev Expenditure,-0.06823868575445823
+Championship,Prev Avg. Squad Age,-0.04605095249672525
+Championship,Prev Goals For,0.23650887547432686
+Championship,Prev Income_missing,0.5343060188301962
+Championship,Prev Squad Value,0.8658161190974977
+League One,Prev Goals Against,-0.262085690108984
+League One,Prev Season Result,-0.23652874830257922
+League One,Prev Income,-0.2193919216792739
+League One,Prev Avg. Squad Age,-0.053929970248273465
+League One,Prev Expenditure,-0.05065575799469681
+League One,Prev Expenditure_missing,-0.03300359757237076
+League One,Prev Goals For,0.2747968296278351
+League One,Prev Income_missing,0.4754956739881162
+League One,Prev Squad Value,1.026582495890772
+League Two,Prev Goals Against,-0.31038000200083077
+League Two,Prev Income,-0.21588245351640278
+League Two,Prev Season Result,-0.2035435453837547
+League Two,Prev Avg. Squad Age,-0.03874377357345074
+League Two,Prev Expenditure,-0.01013599244734339
+League Two,Prev Expenditure_missing,0.04070406786214373
+League Two,Prev Goals For,0.2922578255222809
+League Two,Prev Income_missing,0.4855526040197048
+League Two,Prev Squad Value,0.5360163205788337
+Premier League,Prev Goals Against,-0.3246690277072254
+Premier League,Prev Income,-0.25763514942219023
+Premier League,Prev Season Result,-0.22994213486991757
+Premier League,Prev Expenditure_missing,-0.15563670177583144
+Premier League,Prev Expenditure,-0.1420188945708292
+Premier League,Prev Avg. Squad Age,-0.04748613840292264
+Premier League,Prev Goals For,0.37127039397385125
+Premier League,Prev Income_missing,0.3947455875284398
+Premier League,Prev Squad Value,1.0835867804108488
