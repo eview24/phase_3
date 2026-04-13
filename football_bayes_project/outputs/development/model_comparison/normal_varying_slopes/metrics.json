@@ -3,13 +3,15 @@
   "mode": "development",
   "predictor_timing": "previous_season",
   "holdout_season": "2024/25",
-  "overall_rmse": 1967.5720414777502,
-  "overall_mae": 1867.7805923879775,
-  "overall_r2": -14439.448432492347,
-  "mean_league_rmse": 1897.036625288932,
-  "mean_league_mae": 1894.6275304957749,
-  "mean_league_r2": -15019.052101063236,
+  "overall_rmse": 13.673916157443928,
+  "overall_mae": 11.021612930514378,
+  "overall_r2": 0.29492335046022566,
+  "overall_prediction_interval_coverage": 0.9411764705882353,
+  "mean_league_rmse": 13.453559201840907,
+  "mean_league_mae": 10.884649263647672,
+  "mean_league_r2": 0.25179110030999374,
+  "mean_league_prediction_interval_coverage": 0.9430921052631579,
   "num_leagues_with_holdout": 4,
   "divergences": 0,
-  "max_rhat": 1.2285980246240669
+  "max_rhat": 1.0039382747773977
 }

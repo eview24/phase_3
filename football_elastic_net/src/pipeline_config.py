@@ -1,8 +1,5 @@
 """
-Shared run configuration for development and final Bayesian pipeline modes.
-
-This module keeps the mode switch explicit and reproducible across the main
-modeling script and the model-comparison script.
+Shared configuration for the elastic net regression pipeline.
 """
 
 import argparse
@@ -21,16 +18,10 @@ DEFAULT_MODE = "development"
 @dataclass(frozen=True)
 class RunConfig:
     mode: str
-    draws: int
-    tune: int
-    chains: int
-    target_accept: float
-    random_seed: int
-    progressbar: bool
     output_dir: Path
     holdout_season: str = HOLDOUT_SEASON
-    coefficient_hdi_prob: float = 0.94
-    prediction_hdi_prob: float = 0.94
+    cv_folds: int = 5
+    random_seed: int = 42
 
     def to_serializable_dict(self):
         payload = asdict(self)
@@ -40,20 +31,12 @@ class RunConfig:
 
 MODE_SETTINGS = {
     "development": {
-        "draws": 1000,
-        "tune": 1000,
-        "chains": 4,
-        "target_accept": 0.95,
+        "cv_folds": 5,
         "random_seed": 42,
-        "progressbar": True,
     },
     "final": {
-        "draws": 2000,
-        "tune": 2000,
-        "chains": 4,
-        "target_accept": 0.98,
+        "cv_folds": 10,
         "random_seed": 42,
-        "progressbar": True,
     },
 }
 
@@ -64,7 +47,7 @@ def parse_mode_args(description):
         "--mode",
         choices=sorted(MODE_SETTINGS.keys()),
         default=DEFAULT_MODE,
-        help="Run mode controlling sampling budget and output location.",
+        help="Run mode controlling CV folds and output location.",
     )
     return parser.parse_args()
 

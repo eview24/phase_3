@@ -126,8 +126,8 @@ def compute_per_league_metrics(train_df, pred_df):
                 "prediction_interval_coverage": None,
             }
         else:
-            y_true = league_pred_df["Season Result"].values
-            y_pred = league_pred_df["Predicted Season Result"].values
+            y_true = league_pred_df["Points"].values
+            y_pred = league_pred_df["Predicted Points"].values
 
             row = {
                 "League": league,
@@ -198,8 +198,8 @@ def save_per_league_outputs(idata, train_df, pred_df, model_output_dir, coeffici
 
 
 def summarise_run(model_name, idata, pred_df, per_league_metrics, run_config):
-    y_true = pred_df["Season Result"].values
-    y_pred = pred_df["Predicted Season Result"].values
+    y_true = pred_df["Points"].values
+    y_pred = pred_df["Predicted Points"].values
 
     mean_league_rmse = (
         float(per_league_metrics["rmse"].dropna().mean())

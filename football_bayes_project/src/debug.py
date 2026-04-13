@@ -109,8 +109,8 @@ def compute_per_league_metrics(train_df, pred_df):
                 "prediction_interval_coverage": None,
             }
         else:
-            y_true = league_pred_df["Season Result"].values
-            y_pred = league_pred_df["Predicted Season Result"].values
+            y_true = league_pred_df["Points"].values
+            y_pred = league_pred_df["Predicted Points"].values
 
             row = {
                 "League": league,
@@ -183,12 +183,12 @@ def save_per_league_outputs(idata, train_df, pred_df, model_output_dir, coeffici
 def debug_prediction_summary(pred_df, model_output_dir):
     summary = {
         "num_holdout_rows": int(len(pred_df)),
-        "actual_min": float(pred_df["Season Result"].min()),
-        "actual_max": float(pred_df["Season Result"].max()),
-        "actual_mean": float(pred_df["Season Result"].mean()),
-        "predicted_min": float(pred_df["Predicted Season Result"].min()),
-        "predicted_max": float(pred_df["Predicted Season Result"].max()),
-        "predicted_mean": float(pred_df["Predicted Season Result"].mean()),
+        "actual_min": float(pred_df["Points"].min()),
+        "actual_max": float(pred_df["Points"].max()),
+        "actual_mean": float(pred_df["Points"].mean()),
+        "predicted_min": float(pred_df["Predicted Points"].min()),
+        "predicted_max": float(pred_df["Predicted Points"].max()),
+        "predicted_mean": float(pred_df["Predicted Points"].mean()),
         "residual_min": float(pred_df["Residual"].min()),
         "residual_max": float(pred_df["Residual"].max()),
         "residual_mean": float(pred_df["Residual"].mean()),
@@ -289,8 +289,8 @@ def debug_worst_holdout_prediction(
         "league": league,
         "season": str(raw_row["Season"]),
         "prev_season": str(raw_row["Prev Season"]),
-        "actual_season_result": float(summary_row["Season Result"]),
-        "predicted_season_result": float(summary_row["Predicted Season Result"]),
+        "actual_season_result": float(summary_row["Points"]),
+        "predicted_season_result": float(summary_row["Predicted Points"]),
         "prediction_hdi_lower": float(summary_row["Prediction HDI Lower"]),
         "prediction_hdi_upper": float(summary_row["Prediction HDI Upper"]),
         "within_prediction_interval": bool(summary_row["Within Prediction Interval"]),
@@ -309,8 +309,8 @@ def debug_worst_holdout_prediction(
 
 
 def summarise_run(model_name, idata, pred_df, per_league_metrics, run_config):
-    y_true = pred_df["Season Result"].values
-    y_pred = pred_df["Predicted Season Result"].values
+    y_true = pred_df["Points"].values
+    y_pred = pred_df["Predicted Points"].values
 
     mean_league_rmse = (
         float(per_league_metrics["rmse"].dropna().mean())

@@ -35,7 +35,7 @@ warnings.filterwarnings("ignore")
 RAW_REQUIRED_COLUMNS = [
     "Season",
     "Club",
-    "Season Result",
+    "Points",
     "Squad Value",
     "Avg. Squad Age",
     "Goals For",
@@ -44,7 +44,7 @@ RAW_REQUIRED_COLUMNS = [
 RAW_OPTIONAL_COLUMNS = ["Expenditure", "Income"]
 RAW_NUMERIC_COLUMNS = [
     "Avg. Squad Age",
-    "Season Result",
+    "Points",
     "Goals For",
     "Goals Against",
 ]
@@ -57,7 +57,7 @@ SOURCE_FEATURE_COLUMNS = [
     "Avg. Squad Age",
     "Goals For",
     "Goals Against",
-    "Season Result",
+    "Points",
 ]
 
 PREVIOUS_FEATURE_COLUMNS = [f"Prev {col}" for col in SOURCE_FEATURE_COLUMNS]
@@ -68,8 +68,8 @@ PREPROCESSING_GROUP_COLUMN = "Prev League"
 DEFAULT_HDI_PROB = 0.94
 
 KNOWN_COLUMN_ALIASES = {
-    "season result (points per game in league)": "Season Result",
-    "season result": "Season Result",
+    "season result": "Points",
+    "points per game": "Points per game",
     "goals for": "Goals For",
     "goals against": "Goals Against",
     "avg. squad age": "Avg. Squad Age",
@@ -220,7 +220,7 @@ def load_and_clean_dataset(path):
 
     df = pd.concat(dfs, ignore_index=True)
     df = df.dropna(
-        subset=["Season Result", "Squad Value", "Avg. Squad Age", "Goals For", "Goals Against"]
+        subset=["Points", "Squad Value", "Avg. Squad Age", "Goals For", "Goals Against"]
     ).copy()
 
     return df
@@ -360,12 +360,12 @@ def fit_preprocessor(train_df):
     x_stds = train[CONTINUOUS_COLUMNS].std().replace(0, 1)
     train[CONTINUOUS_COLUMNS] = (train[CONTINUOUS_COLUMNS] - x_means) / x_stds
 
-    y_mean = train["Season Result"].mean()
-    y_std = train["Season Result"].std()
+    y_mean = train["Points"].mean()
+    y_std = train["Points"].std()
     if y_std == 0:
         raise ValueError("Training target has zero variance; cannot standardise.")
 
-    train["y_std"] = (train["Season Result"] - y_mean) / y_std
+    train["y_std"] = (train["Points"] - y_mean) / y_std
 
     artifacts = PreprocessingArtifacts(
         feature_cols=CONTINUOUS_COLUMNS + missing_flag_cols,
@@ -421,7 +421,7 @@ def apply_preprocessor(frame, artifacts, include_target=True):
 
     if include_target:
         transformed["y_std"] = (
-            transformed["Season Result"] - artifacts.y_mean
+            transformed["Points"] - artifacts.y_mean
         ) / artifacts.y_std
 
     return transformed
@@ -676,16 +676,16 @@ def summarise_feature_stability(coefficient_summary):
 
 def build_holdout_prediction_df(holdout_df, prediction_summary):
     pred_df = holdout_df[
-        ["Season", "Prev Season", "League", "Prev League", "Club", "Season Result"]
+        ["Season", "Prev Season", "League", "Prev League", "Club", "Points"]
     ].copy()
-    pred_df["Predicted Season Result"] = prediction_summary["mean"]
+    pred_df["Predicted Points"] = prediction_summary["mean"]
     pred_df["Prediction SD"] = prediction_summary["sd"]
     pred_df["Prediction HDI Lower"] = prediction_summary["hdi_lower"]
     pred_df["Prediction HDI Upper"] = prediction_summary["hdi_upper"]
-    pred_df["Residual"] = pred_df["Season Result"] - pred_df["Predicted Season Result"]
+    pred_df["Residual"] = pred_df["Points"] - pred_df["Predicted Points"]
     pred_df["Within Prediction Interval"] = (
-        (pred_df["Season Result"] >= pred_df["Prediction HDI Lower"])
-        & (pred_df["Season Result"] <= pred_df["Prediction HDI Upper"])
+        (pred_df["Points"] >= pred_df["Prediction HDI Lower"])
+        & (pred_df["Points"] <= pred_df["Prediction HDI Upper"])
     )
     return pred_df
 
@@ -708,15 +708,15 @@ def save_actual_vs_predicted_plot(pred_df, title, output_path):
         return
 
     plt.figure(figsize=(6, 6))
-    plt.scatter(pred_df["Season Result"], pred_df["Predicted Season Result"])
+    plt.scatter(pred_df["Points"], pred_df["Predicted Points"])
 
-    mn = min(pred_df["Season Result"].min(), pred_df["Predicted Season Result"].min())
-    mx = max(pred_df["Season Result"].max(), pred_df["Predicted Season Result"].max())
+    mn = min(pred_df["Points"].min(), pred_df["Predicted Points"].min())
+    mx = max(pred_df["Points"].max(), pred_df["Predicted Points"].max())
     pad = 1.0 if np.isclose(mx, mn) else 0.05 * (mx - mn)
 
     plt.plot([mn - pad, mx + pad], [mn - pad, mx + pad], linestyle="--")
-    plt.xlabel("Actual Season Result")
-    plt.ylabel("Predicted Season Result")
+    plt.xlabel("Actual Points")
+    plt.ylabel("Predicted Points")
     plt.title(title)
     plt.tight_layout()
     plt.savefig(output_path, dpi=200)
@@ -771,8 +771,8 @@ def save_per_league_outputs(idata, train_df, holdout_df, prediction_summary, bas
                 "prediction_interval_coverage": None,
             }
         else:
-            y_true = league_holdout_df["Season Result"].values
-            y_pred = league_holdout_df["Predicted Season Result"].values
+            y_true = league_holdout_df["Points"].values
+            y_pred = league_holdout_df["Predicted Points"].values
 
             league_metrics = {
                 "League": league,
@@ -805,7 +805,7 @@ def save_outputs(idata, train_df, holdout_df, prediction_summary, preprocessing_
     output_dir.mkdir(parents=True, exist_ok=True)
     save_run_config(run_config, output_dir)
 
-    y_true = holdout_df["Season Result"].values
+    y_true = holdout_df["Points"].values
     predictions = prediction_summary["mean"]
     rmse = float(np.sqrt(mean_squared_error(y_true, predictions)))
     mae = float(mean_absolute_error(y_true, predictions))

@@ -8,6 +8,7 @@ Formulations compared:
 - student_t_varying_slopes
 
 Ranking priority:
+0. well_converged (divergences = 0 and max_rhat <= 1.05)
 1. mean_league_rmse
 2. overall_rmse
 3. mean_league_mae
@@ -17,8 +18,8 @@ Ranking priority:
 7. divergences
 
 Recommended formulation:
-normal_varying_slopes
+student_t_varying_slopes
 
-              model_name        mode predictor_timing holdout_season  overall_rmse  overall_mae    overall_r2  mean_league_rmse  mean_league_mae  mean_league_r2  num_leagues_with_holdout  divergences  max_rhat
-   normal_varying_slopes development  previous_season        2024/25   1967.572041  1867.780592 -14439.448432       1897.036625       1894.62753   -15019.052101                         4            0  1.228598
-student_t_varying_slopes development  previous_season        2024/25   2052.259667  1952.150504 -15709.283232       1981.833428       1979.32766   -16402.229830                         4            0  1.071287
+              model_name        mode predictor_timing holdout_season  overall_rmse  overall_mae  overall_r2  overall_prediction_interval_coverage  mean_league_rmse  mean_league_mae  mean_league_r2  mean_league_prediction_interval_coverage  num_leagues_with_holdout  divergences  max_rhat  well_converged
+student_t_varying_slopes development  previous_season        2024/25     13.665075    11.025594    0.295835                              0.941176         13.436141        10.883992        0.253912                                  0.943092                         4            0  1.004324            True
+   normal_varying_slopes development  previous_season        2024/25     13.673916    11.021613    0.294923                              0.941176         13.453559        10.884649        0.251791                                  0.943092                         4            0  1.003938            True
