@@ -22,6 +22,7 @@ class RunConfig:
     holdout_season: str = HOLDOUT_SEASON
     cv_folds: int = 5
     random_seed: int = 42
+    n_trials: int = 100
 
     def to_serializable_dict(self):
         payload = asdict(self)
@@ -33,10 +34,12 @@ MODE_SETTINGS = {
     "development": {
         "cv_folds": 5,
         "random_seed": 42,
+        "n_trials": 50,
     },
     "final": {
         "cv_folds": 10,
         "random_seed": 42,
+        "n_trials": 200,
     },
 }
 

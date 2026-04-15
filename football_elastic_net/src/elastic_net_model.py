@@ -4,20 +4,6 @@ Elastic net regression with lagged predictors, per league.
 Each row predicts a club's current-season points per game using that same
 club's previous-season features. A separate model is fitted per league, with
 hyperparameters selected via cross-validation on training data only.
-
-The 2024/25 season is held out entirely and only used for final evaluation.
-
-Outputs per league:
-  coefficients.csv            feature name, coefficient, abs coefficient
-  coefficients.png            horizontal bar chart
-  holdout_predictions.csv     actual, predicted, residual for each holdout row
-  actual_vs_predicted.png     scatter plot on holdout set
-  metrics.json                train, CV, and holdout performance
-
-Overall outputs:
-  overall_metrics.csv         one row per league
-  all_coefficients.csv        all leagues combined
-  run_config.json
 """
 
 import json
@@ -25,10 +11,11 @@ import re
 import warnings
 from dataclasses import dataclass
 
+import optuna
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import ElasticNet, ElasticNetCV
+from sklearn.linear_model import ElasticNet
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
@@ -36,9 +23,7 @@ from sklearn.preprocessing import StandardScaler
 from pipeline_config import INPUT_PATH, build_run_config, parse_mode_args, save_run_config
 
 warnings.filterwarnings("ignore")
-
-
-# --- column definitions ---
+optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 RAW_REQUIRED_COLUMNS = [
     "Season",
@@ -81,8 +66,8 @@ KNOWN_COLUMN_ALIASES = {
     "club": "Club",
 }
 
-ALPHAS = np.logspace(-4, 2, 80)
-L1_RATIOS = [0.1, 0.3, 0.5, 0.7, 0.9, 0.95, 1.0]
+ALPHA_LOW = 1e-4
+ALPHA_HIGH = 1e2
 
 
 # data loading 
@@ -320,27 +305,40 @@ def apply_transforms(frame, feature_cols, imputation_artifacts, fit_scaler=None)
 
 # modelling 
 
-def fit_league_model(train_league, feature_cols, imputation_artifacts, cv_folds, random_seed):
+def fit_league_model(train_league, feature_cols, imputation_artifacts, cv_folds, random_seed, n_trials):
     """
-    Select hyperparameters via ElasticNetCV, then re-run CV with fixed
-    hyperparameters to get unbiased performance estimates.
+    Select hyperparameters using Optuna, then re-run CV with the
+    best parameters.
     """
     y_train = train_league["Points"].values.astype(float)
     X_train, scaler = apply_transforms(train_league, feature_cols, imputation_artifacts)
 
     cv = KFold(n_splits=cv_folds, shuffle=True, random_state=random_seed)
-    en_cv = ElasticNetCV(
-        alphas=ALPHAS,
-        l1_ratio=L1_RATIOS,
-        cv=cv,
-        max_iter=10_000,
-        random_state=random_seed,
+
+    def objective(trial):
+        alpha = trial.suggest_float("alpha", ALPHA_LOW, ALPHA_HIGH, log=True)
+        l1_ratio = trial.suggest_float("l1_ratio", 0.0, 1.0)
+        scores = []
+        for train_idx, val_idx in cv.split(X_train):
+            model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=10_000)
+            model.fit(X_train[train_idx], y_train[train_idx])
+            r2 = _safe_r2(y_train[val_idx], model.predict(X_train[val_idx]))
+            scores.append(r2 if r2 is not None else -1.0)
+        return float(np.mean(scores))
+
+    study = optuna.create_study(
+        direction="maximize",
+        sampler=optuna.samplers.TPESampler(seed=random_seed),
     )
-    en_cv.fit(X_train, y_train)
+    study.optimize(objective, n_trials=n_trials)
 
-    cv_scores = _cross_val_r2(X_train, y_train, en_cv.alpha_, en_cv.l1_ratio_, cv)
+    best = study.best_params
+    en = ElasticNet(alpha=best["alpha"], l1_ratio=best["l1_ratio"], max_iter=10_000)
+    en.fit(X_train, y_train)
 
-    return en_cv, scaler, cv_scores
+    cv_scores = _cross_val_r2(X_train, y_train, best["alpha"], best["l1_ratio"], cv)
+
+    return en, scaler, cv_scores
 
 
 def _cross_val_r2(X, y, alpha, l1_ratio, cv):
@@ -424,8 +422,8 @@ def save_league_outputs(
         "league": league,
         "n_train": len(y_train),
         "n_holdout": len(y_holdout) if y_holdout is not None else 0,
-        "alpha": float(en.alpha_),
-        "l1_ratio": float(en.l1_ratio_),
+        "alpha": float(en.alpha),
+        "l1_ratio": float(en.l1_ratio),
         "n_active_features": int((np.abs(en.coef_) > 0).sum()),
         "train_r2": float(r2_score(y_train, y_train_pred)),
         "train_rmse": float(np.sqrt(mean_squared_error(y_train, y_train_pred))),
@@ -504,6 +502,7 @@ def main():
             imputation_artifacts=imputation_artifacts,
             cv_folds=run_config.cv_folds,
             random_seed=run_config.random_seed,
+            n_trials=run_config.n_trials,
         )
 
         X_train, _ = apply_transforms(train_league, feature_cols, imputation_artifacts, fit_scaler=scaler)
