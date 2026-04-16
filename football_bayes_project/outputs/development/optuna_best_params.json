@@ -1,0 +1,11 @@
+{
+  "best_value": 17.07784304112255,
+  "best_params": {
+    "mu_beta_mu_sigma": 0.3555781345986666,
+    "mu_beta_sigma_sigma": 1.9428287191077893,
+    "sigma_beta_alpha_sigma": 1.6816410175208014,
+    "sigma_alpha_sigma": 0.8733155988313457,
+    "sigma_sigma": 0.7909274114591717
+  },
+  "best_trial": 2
+}
