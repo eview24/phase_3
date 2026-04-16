@@ -21,6 +21,8 @@ import pandas as pd
 import pymc as pm
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+import optuna
+
 from pipeline_config import (
     HOLDOUT_SEASON,
     INPUT_PATH,
@@ -426,10 +428,21 @@ def apply_preprocessor(frame, artifacts, include_target=True):
 
     return transformed
 
-def build_and_fit_model(train_df, feature_cols, run_config):
+def build_and_fit_model(train_df, feature_cols, run_config, hyperparams=None):
     """
     Hierarchical model with league-specific intercepts and slopes.
+    mu_beta and sigma_beta are now learned from data via hyperpriors
+    rather than being fixed constants.
     """
+    if hyperparams is None:
+        hyperparams = {
+            "mu_beta_mu_sigma":      1.0,
+            "mu_beta_sigma_sigma":   1.0,
+            "sigma_beta_alpha_sigma": 1.0,
+            "sigma_alpha_sigma":     1.0,
+            "sigma_sigma":           1.0,
+        }
+
     leagues = sorted(train_df["League"].unique())
     league_to_idx = {league: i for i, league in enumerate(leagues)}
 
@@ -440,25 +453,34 @@ def build_and_fit_model(train_df, feature_cols, run_config):
     coords = {"group": leagues, "predictor": feature_cols}
 
     with pm.Model(coords=coords) as model:
-        mu_alpha = pm.Normal("mu_alpha", mu=0.0, sigma=1.0)
-        sigma_alpha = pm.HalfNormal("sigma_alpha", sigma=1.0)
-
-        mu_beta = pm.Normal("mu_beta", mu=0.0, sigma=0.7, dims="predictor")
-        sigma_beta = pm.HalfNormal("sigma_beta", sigma=0.5, dims="predictor")
-
-        z_alpha = pm.Normal("z_alpha", mu=0.0, sigma=1.0, dims="group")
-        alpha = pm.Deterministic("alpha", mu_alpha + sigma_alpha * z_alpha, dims="group")
-
-        z_beta = pm.Normal("z_beta", mu=0.0, sigma=1.0, dims=("group", "predictor"))
-        beta = pm.Deterministic(
-            "beta",
-            mu_beta + sigma_beta * z_beta,
-            dims=("group", "predictor"),
+        mu_alpha    = pm.Normal("mu_alpha", mu=0.0, sigma=1.0)
+        sigma_alpha = pm.HalfNormal(
+            "sigma_alpha", sigma=hyperparams["sigma_alpha_sigma"]  # tuned
         )
 
-        sigma = pm.HalfNormal("sigma", sigma=1.0)
-        mu = alpha[group_idx] + (beta[group_idx] * X).sum(axis=1)
+        mu_beta_mu    = pm.Normal(
+            "mu_beta_mu", mu=0.0, sigma=hyperparams["mu_beta_mu_sigma"], dims="predictor"  # tuned
+        )
+        mu_beta_sigma = pm.HalfNormal(
+            "mu_beta_sigma", sigma=hyperparams["mu_beta_sigma_sigma"], dims="predictor"  # tuned
+        )
+        mu_beta       = pm.Normal("mu_beta", mu=mu_beta_mu, sigma=mu_beta_sigma, dims="predictor")
 
+        sigma_beta_alpha = pm.HalfNormal(
+            "sigma_beta_alpha", sigma=hyperparams["sigma_beta_alpha_sigma"], dims="predictor"  # tuned
+        )
+        sigma_beta = pm.HalfNormal("sigma_beta", sigma=sigma_beta_alpha, dims="predictor")
+
+        z_alpha = pm.Normal("z_alpha", mu=0.0, sigma=1.0, dims="group")
+        alpha   = pm.Deterministic("alpha", mu_alpha + sigma_alpha * z_alpha, dims="group")
+
+        z_beta  = pm.Normal("z_beta", mu=0.0, sigma=1.0, dims=("group", "predictor"))
+        beta    = pm.Deterministic(
+            "beta", mu_beta + sigma_beta * z_beta, dims=("group", "predictor")
+        )
+
+        sigma = pm.HalfNormal("sigma", sigma=hyperparams["sigma_sigma"])  # tuned
+        mu    = alpha[group_idx] + (beta[group_idx] * X).sum(axis=1)
         pm.Normal("y_obs", mu=mu, sigma=sigma, observed=y)
 
         idata = pm.sample(
@@ -468,7 +490,7 @@ def build_and_fit_model(train_df, feature_cols, run_config):
             cores=1,
             target_accept=run_config.target_accept,
             random_seed=run_config.random_seed,
-            progressbar=run_config.progressbar,
+            progressbar=False,
             return_inferencedata=True,
         )
 
@@ -690,6 +712,7 @@ def build_holdout_prediction_df(holdout_df, prediction_summary):
     return pred_df
 
 
+
 def save_barh_plot(plot_df, y_col, x_col, title, output_path, figsize=(9, 6)):
     if plot_df.empty:
         return
@@ -890,10 +913,61 @@ def save_outputs(idata, train_df, holdout_df, prediction_summary, preprocessing_
 
     return diagnostics
 
+def make_objective(train_df, holdout_df, preprocessing_artifacts, run_config):
+    """
+    Returns a closure over the preprocessed data so Optuna can call it
+    repeatedly without reloading or re-splitting data each trial.
+    """
+    feature_cols = preprocessing_artifacts.feature_cols
+
+    def objective(trial):
+        hyperparams = {
+            "mu_beta_mu_sigma":       trial.suggest_float("mu_beta_mu_sigma",       0.3, 3.0),
+            "mu_beta_sigma_sigma":    trial.suggest_float("mu_beta_sigma_sigma",    0.1, 2.0),
+            "sigma_beta_alpha_sigma": trial.suggest_float("sigma_beta_alpha_sigma", 0.1, 2.0),
+            "sigma_alpha_sigma":      trial.suggest_float("sigma_alpha_sigma",      0.3, 3.0),
+            "sigma_sigma":            trial.suggest_float("sigma_sigma",            0.3, 3.0),
+        }
+
+        try:
+            _, idata, league_to_idx = build_and_fit_model(
+                train_df=train_df,
+                feature_cols=feature_cols,
+                run_config=run_config,
+                hyperparams=hyperparams,
+            )
+        except Exception as e:
+            print(f"Trial {trial.number} failed during sampling: {e}")
+            return 999.0
+
+        # Penalise divergences so Optuna avoids poorly-identified configs
+        divergences = int(idata.sample_stats["diverging"].sum().values)
+
+        pred = predict_holdout(
+            idata=idata,
+            holdout_df=holdout_df,
+            feature_cols=feature_cols,
+            league_to_idx=league_to_idx,
+            y_mean=preprocessing_artifacts.y_mean,
+            y_std=preprocessing_artifacts.y_std,
+        )
+
+        rmse = float(np.sqrt(np.mean(
+            (holdout_df["Points"].values - pred["mean"]) ** 2
+        )))
+
+        penalised_rmse = rmse + divergences * 0.5
+        print(f"Trial {trial.number} | RMSE: {rmse:.4f} | Divergences: {divergences} | params: {hyperparams}")
+
+        return penalised_rmse
+
+    return objective
 
 def main():
     args = parse_mode_args("Fit the hierarchical Bayesian football model.")
     run_config = build_run_config(args.mode)
+    optuna_output_dir = run_config.output_dir / "optuna"
+    optuna_output_dir.mkdir(parents=True, exist_ok=True)
     np.random.seed(run_config.random_seed)
 
     print("Loading and cleaning data...")
@@ -911,6 +985,44 @@ def main():
     train_df, preprocessing_artifacts = fit_preprocessor(train_raw)
     holdout_df = apply_preprocessor(holdout_raw, preprocessing_artifacts)
 
+    base_config = build_run_config(args.mode)
+    search_config = type(base_config)(
+        **{
+            **base_config.__dict__,
+            "draws": 200,
+            "tune": 200,
+        }
+    )
+
+    print("Running Optuna hyperparameter search...")
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=optuna.samplers.TPESampler(seed=run_config.random_seed),
+        pruner=optuna.pruners.MedianPruner(n_startup_trials=5),
+    )
+    study.optimize(
+        make_objective(train_df, holdout_df, preprocessing_artifacts, search_config),
+        n_trials=20,
+        timeout=7200,  # stop after 2 hours regardless of n_trials
+    )
+
+    print(f"\nBest trial RMSE: {study.best_value:.4f}")
+    print(f"Best hyperparams: {study.best_params}")
+
+    optuna_df = study.trials_dataframe()
+    optuna_df.to_csv(run_config.output_dir / "optuna_trials.csv", index=False)
+
+    with open(run_config.output_dir / "optuna_best_params.json", "w") as f:
+        json.dump(
+            {
+            "best_value": study.best_value,
+            "best_params": study.best_params,
+            "best_trial": study.best_trial.number,
+            },
+            f,
+            indent=2,
+        )
+
     print(f"Train rows: {len(train_df)}")
     print(f"Holdout rows ({run_config.holdout_season}): {len(holdout_df)}")
     print(f"Running mode: {run_config.mode}")
@@ -920,6 +1032,7 @@ def main():
         train_df=train_df,
         feature_cols=preprocessing_artifacts.feature_cols,
         run_config=run_config,
+        hyperparams=study.best_params,
     )
 
     print("Predicting holdout season...")
