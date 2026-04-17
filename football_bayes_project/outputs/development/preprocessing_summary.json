@@ -9,7 +9,7 @@
     "Prev Avg. Squad Age",
     "Prev Goals For",
     "Prev Goals Against",
-    "Prev Season Result",
+    "Prev Points",
     "Prev Expenditure_missing",
     "Prev Income_missing"
   ],
@@ -20,7 +20,7 @@
     "Prev Avg. Squad Age",
     "Prev Goals For",
     "Prev Goals Against",
-    "Prev Season Result"
+    "Prev Points"
   ],
   "imputation_group_col": "Prev League",
   "x_means": {
@@ -30,7 +30,7 @@
     "Prev Avg. Squad Age": 25.961286254728883,
     "Prev Goals For": 56.745271122320304,
     "Prev Goals Against": 56.131147540983605,
-    "Prev Season Result": 60.138713745271126
+    "Prev Points": 60.138713745271126
   },
   "x_stds": {
     "Prev Expenditure": 2.637224415074193,
@@ -39,7 +39,7 @@
     "Prev Avg. Squad Age": 1.1702981835452508,
     "Prev Goals For": 14.122325650407136,
     "Prev Goals Against": 12.862440459155696,
-    "Prev Season Result": 16.264416351426533
+    "Prev Points": 16.264416351426533
   },
   "y_mean": 59.57755359394704,
   "y_std": 16.754446132882517
