@@ -3,21 +3,21 @@ Predictor timing: previous season
 Mode: development
 Holdout season: 2024/25
 Train rows: 793
-Holdout rows: 84
+Holdout rows: 85
 
 Overall holdout metrics
-RMSE: 13.714627
-MAE: 11.119382
-R2: 0.298404
-Prediction interval coverage (94% interval): 0.940476
+RMSE: 13.571897
+MAE: 10.978106
+R2: 0.305405
+Prediction interval coverage (94% interval): 0.941176
 
 Sampler diagnostics
-Divergences: 0
-Max R-hat: 1.005939
+Divergences: 1030
+Max R-hat: 1.547407
 
 Feature-uncertainty outputs saved:
-C:\Users\crist\Downloads\football_bayes_project\football_bayes_project\outputs\development\per_league\all_league_coefficients.csv
-C:\Users\crist\Downloads\football_bayes_project\football_bayes_project\outputs\development\per_league\cross_league_feature_summary.csv
+C:\Users\indyg\Documents\MDM3\MDM3.4 - Phase C\football_bayes_project\outputs\development\per_league\all_league_coefficients.csv
+C:\Users\indyg\Documents\MDM3\MDM3.4 - Phase C\football_bayes_project\outputs\development\per_league\cross_league_feature_summary.csv
 
 League-level outputs saved under:
-C:\Users\crist\Downloads\football_bayes_project\football_bayes_project\outputs\development\per_league
+C:\Users\indyg\Documents\MDM3\MDM3.4 - Phase C\football_bayes_project\outputs\development\per_league

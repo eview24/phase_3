@@ -6,7 +6,7 @@
   "target_accept": 0.95,
   "random_seed": 42,
   "progressbar": true,
-  "output_dir": "C:\\Users\\crist\\Downloads\\football_bayes_project\\football_bayes_project\\outputs\\development",
+  "output_dir": "C:\\Users\\indyg\\Documents\\MDM3\\MDM3.4 - Phase C\\football_bayes_project\\outputs\\development",
   "holdout_season": "2024/25",
   "coefficient_hdi_prob": 0.94,
   "prediction_hdi_prob": 0.94

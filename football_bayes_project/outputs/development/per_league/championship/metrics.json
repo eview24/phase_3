@@ -1,9 +1,9 @@
 {
   "League": "Championship",
   "train_rows": 208,
-  "holdout_rows": 19,
-  "rmse": 13.913228470669477,
-  "mae": 11.59047732506796,
-  "r2": 0.3073620162330587,
-  "prediction_interval_coverage": 0.9473684210526315
+  "holdout_rows": 20,
+  "rmse": 13.370794221677166,
+  "mae": 10.917491959803122,
+  "r2": 0.3305192550987286,
+  "prediction_interval_coverage": 0.95
 }

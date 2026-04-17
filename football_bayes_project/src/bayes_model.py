@@ -1000,11 +1000,30 @@ def main():
         sampler=optuna.samplers.TPESampler(seed=run_config.random_seed),
         pruner=optuna.pruners.MedianPruner(n_startup_trials=5),
     )
+    
     study.optimize(
         make_objective(train_df, holdout_df, preprocessing_artifacts, search_config),
-        n_trials=20,
-        timeout=7200,  # stop after 2 hours regardless of n_trials
+        n_trials=40,
+        #timeout=7200,  # stop after 2 hours regardless of n_trials
     )
+
+    best = study.best_params
+    print("\n=== OPTUNA BEST HYPERPARAMS (will be used in final model) ===")
+    for param, value in best.items():
+        print(f"  {param}: {value:.4f}")
+    print(f"  (selected from trial #{study.best_trial.number} of {len(study.trials)} total)")
+
+    defaults = {
+        "mu_beta_mu_sigma": 1.0,
+        "mu_beta_sigma_sigma": 1.0,
+        "sigma_beta_alpha_sigma": 1.0,
+        "sigma_alpha_sigma": 1.0,
+        "sigma_sigma": 1.0,
+    }
+    print("\n  Deviation from defaults:")
+    for param, default_val in defaults.items():
+        tuned_val = best.get(param, default_val)
+        print(f"  {param}: default={default_val:.2f} → tuned={tuned_val:.4f} (Δ={tuned_val - default_val:+.4f})")
 
     print(f"\nBest trial RMSE: {study.best_value:.4f}")
     print(f"Best hyperparams: {study.best_params}")
