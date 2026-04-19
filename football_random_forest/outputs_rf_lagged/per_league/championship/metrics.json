@@ -1,0 +1,8 @@
+{
+  "League": "Championship",
+  "holdout_rows": 43,
+  "rmse": 14.644407569421702,
+  "mae": 10.824661359339268,
+  "r2": 0.164691970595658,
+  "prediction_interval_coverage": 1.0
+}

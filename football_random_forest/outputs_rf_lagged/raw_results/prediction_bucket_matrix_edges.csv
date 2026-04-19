@@ -1,0 +1,5 @@
+quartile,lower_edge,upper_edge
+Q1,13.0,44.0
+Q2,44.0,55.0
+Q3,55.0,68.0
+Q4,68.0,101.0

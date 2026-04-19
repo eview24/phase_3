@@ -1,0 +1,36 @@
+{
+  "dev_rows": 1233,
+  "holdout_rows": 301,
+  "holdout_seasons": [
+    "2023/24",
+    "2024/25"
+  ],
+  "cv_strategy": "walk_forward_expanding_window",
+  "cv_fold_val_seasons": [
+    "2017/18",
+    "2018/19",
+    "2019/20",
+    "2020/21",
+    "2021/22",
+    "2022/23"
+  ],
+  "cv_min_train_seasons": 2,
+  "cv_best_fold_rmses": [
+    13.247568081009076,
+    13.309455256335355,
+    14.707977212757319,
+    12.585243502772919,
+    13.706367931677743,
+    13.193336587989418
+  ],
+  "cv_best_mean_rmse": 13.458324762090307,
+  "predictor_timing": "previous_season",
+  "rmse": 13.721107648789928,
+  "mae": 10.560826847040534,
+  "r2": 0.38421284626342844,
+  "mape_pct": 21.98649600410843,
+  "bias_mean_error": -0.8124706313098226,
+  "prediction_interval_coverage": 0.973421926910299,
+  "prediction_interval_probability": 0.94,
+  "oob_residual_std": 13.357298493353444
+}

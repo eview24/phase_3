@@ -1,0 +1,8 @@
+{
+  "League": "Ligue One",
+  "holdout_rows": 31,
+  "rmse": 12.586065538260106,
+  "mae": 9.591789424061917,
+  "r2": 0.2604612528308693,
+  "prediction_interval_coverage": 0.9354838709677419
+}

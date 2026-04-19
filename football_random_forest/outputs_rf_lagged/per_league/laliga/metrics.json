@@ -1,0 +1,8 @@
+{
+  "League": "LaLiga",
+  "holdout_rows": 34,
+  "rmse": 12.292906533014722,
+  "mae": 8.91465078712919,
+  "r2": 0.5320209036258406,
+  "prediction_interval_coverage": 0.9705882352941176
+}

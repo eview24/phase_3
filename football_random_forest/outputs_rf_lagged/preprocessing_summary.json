@@ -1,0 +1,48 @@
+{
+  "holdout_seasons": [
+    "2023/24",
+    "2024/25"
+  ],
+  "cv_strategy": "walk_forward_expanding_window",
+  "cv_fold_val_seasons": [
+    "2017/18",
+    "2018/19",
+    "2019/20",
+    "2020/21",
+    "2021/22",
+    "2022/23"
+  ],
+  "cv_min_train_seasons": 2,
+  "predictor_timing": "previous_season",
+  "feature_cols": [
+    "Prev Expenditure",
+    "Prev Income",
+    "Prev Squad Value",
+    "Prev Avg. Squad Age",
+    "Prev Goals For",
+    "Prev Goals Against",
+    "Prev Points",
+    "Prev Expenditure_missing",
+    "Prev Income_missing"
+  ],
+  "continuous_cols": [
+    "Prev Expenditure",
+    "Prev Income",
+    "Prev Squad Value",
+    "Prev Avg. Squad Age",
+    "Prev Goals For",
+    "Prev Goals Against",
+    "Prev Points"
+  ],
+  "imputation_group_col": "Prev League",
+  "league_dummies": [
+    "lg_Bundesliga",
+    "lg_Championship",
+    "lg_LaLiga",
+    "lg_League One",
+    "lg_League Two",
+    "lg_Ligue One",
+    "lg_Premier League",
+    "lg_Serie A"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "League": "Bundesliga",
+  "holdout_rows": 32,
+  "rmse": 13.215251602429007,
+  "mae": 10.064485082748245,
+  "r2": 0.31603751161337335,
+  "prediction_interval_coverage": 0.96875
+}

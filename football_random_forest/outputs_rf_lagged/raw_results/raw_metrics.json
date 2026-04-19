@@ -1,0 +1,16 @@
+{
+  "model": "random_forest_lagged",
+  "target": "Points",
+  "predictor_timing": "previous_season",
+  "n_fit": 1233,
+  "n_test": 301,
+  "rmse": 13.721107648789928,
+  "mae": 10.560826847040534,
+  "r2": 0.38421284626342844,
+  "mape_pct": 21.98649600410843,
+  "bias_mean_error": -0.8124706313098226,
+  "residual_std": 13.719841430262608,
+  "interval_prob": 0.94,
+  "interval_coverage": 0.973421926910299,
+  "oob_score_r2": 0.39387243643739045
+}

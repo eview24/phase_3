@@ -1,0 +1,8 @@
+{
+  "League": "Premier League",
+  "holdout_rows": 39,
+  "rmse": 13.036623953154315,
+  "mae": 10.44339703000738,
+  "r2": 0.4881301934814154,
+  "prediction_interval_coverage": 0.9743589743589743
+}

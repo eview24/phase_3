@@ -1,0 +1,8 @@
+{
+  "League": "League Two",
+  "holdout_rows": 44,
+  "rmse": 12.872355488293767,
+  "mae": 11.093373041527515,
+  "r2": -0.044528692319570684,
+  "prediction_interval_coverage": 1.0
+}
