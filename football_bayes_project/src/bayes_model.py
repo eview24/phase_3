@@ -22,10 +22,12 @@ import pymc as pm
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 import optuna
+import shap
 
 from pipeline_config import (
-    HOLDOUT_SEASON,
+    HOLDOUT_SEASONS,
     INPUT_PATH,
+    OUTPUT_ROOT,
     build_run_config,
     parse_mode_args,
     save_run_config,
@@ -37,7 +39,7 @@ warnings.filterwarnings("ignore")
 RAW_REQUIRED_COLUMNS = [
     "Season",
     "Club",
-    "Points",
+    "Points per game",
     "Squad Value",
     "Avg. Squad Age",
     "Goals For",
@@ -46,7 +48,7 @@ RAW_REQUIRED_COLUMNS = [
 RAW_OPTIONAL_COLUMNS = ["Expenditure", "Income"]
 RAW_NUMERIC_COLUMNS = [
     "Avg. Squad Age",
-    "Points",
+    "Points per game",
     "Goals For",
     "Goals Against",
 ]
@@ -59,7 +61,7 @@ SOURCE_FEATURE_COLUMNS = [
     "Avg. Squad Age",
     "Goals For",
     "Goals Against",
-    "Points",
+    "Points per game",
 ]
 
 PREVIOUS_FEATURE_COLUMNS = [f"Prev {col}" for col in SOURCE_FEATURE_COLUMNS]
@@ -222,7 +224,7 @@ def load_and_clean_dataset(path):
 
     df = pd.concat(dfs, ignore_index=True)
     df = df.dropna(
-        subset=["Points", "Squad Value", "Avg. Squad Age", "Goals For", "Goals Against"]
+        subset=["Points per game", "Squad Value", "Avg. Squad Age", "Goals For", "Goals Against"]
     ).copy()
 
     return df
@@ -362,12 +364,12 @@ def fit_preprocessor(train_df):
     x_stds = train[CONTINUOUS_COLUMNS].std().replace(0, 1)
     train[CONTINUOUS_COLUMNS] = (train[CONTINUOUS_COLUMNS] - x_means) / x_stds
 
-    y_mean = train["Points"].mean()
-    y_std = train["Points"].std()
+    y_mean = train["Points per game"].mean()
+    y_std = train["Points per game"].std()
     if y_std == 0:
         raise ValueError("Training target has zero variance; cannot standardise.")
 
-    train["y_std"] = (train["Points"] - y_mean) / y_std
+    train["y_std"] = (train["Points per game"] - y_mean) / y_std
 
     artifacts = PreprocessingArtifacts(
         feature_cols=CONTINUOUS_COLUMNS + missing_flag_cols,
@@ -423,7 +425,7 @@ def apply_preprocessor(frame, artifacts, include_target=True):
 
     if include_target:
         transformed["y_std"] = (
-            transformed["Points"] - artifacts.y_mean
+            transformed["Points per game"] - artifacts.y_mean
         ) / artifacts.y_std
 
     return transformed
@@ -698,16 +700,16 @@ def summarise_feature_stability(coefficient_summary):
 
 def build_holdout_prediction_df(holdout_df, prediction_summary):
     pred_df = holdout_df[
-        ["Season", "Prev Season", "League", "Prev League", "Club", "Points"]
+        ["Season", "Prev Season", "League", "Prev League", "Club", "Points per game"]
     ].copy()
-    pred_df["Predicted Points"] = prediction_summary["mean"]
+    pred_df["Predicted Points per game"] = prediction_summary["mean"]
     pred_df["Prediction SD"] = prediction_summary["sd"]
     pred_df["Prediction HDI Lower"] = prediction_summary["hdi_lower"]
     pred_df["Prediction HDI Upper"] = prediction_summary["hdi_upper"]
-    pred_df["Residual"] = pred_df["Points"] - pred_df["Predicted Points"]
+    pred_df["Residual"] = pred_df["Points per game"] - pred_df["Predicted Points per game"]
     pred_df["Within Prediction Interval"] = (
-        (pred_df["Points"] >= pred_df["Prediction HDI Lower"])
-        & (pred_df["Points"] <= pred_df["Prediction HDI Upper"])
+        (pred_df["Points per game"] >= pred_df["Prediction HDI Lower"])
+        & (pred_df["Points per game"] <= pred_df["Prediction HDI Upper"])
     )
     return pred_df
 
@@ -731,10 +733,10 @@ def save_actual_vs_predicted_plot(pred_df, title, output_path):
         return
 
     plt.figure(figsize=(6, 6))
-    plt.scatter(pred_df["Points"], pred_df["Predicted Points"])
+    plt.scatter(pred_df["Points per game"], pred_df["Predicted Points per game"])
 
-    mn = min(pred_df["Points"].min(), pred_df["Predicted Points"].min())
-    mx = max(pred_df["Points"].max(), pred_df["Predicted Points"].max())
+    mn = min(pred_df["Points per game"].min(), pred_df["Predicted Points per game"].min())
+    mx = max(pred_df["Points per game"].max(), pred_df["Predicted Points per game"].max())
     pad = 1.0 if np.isclose(mx, mn) else 0.05 * (mx - mn)
 
     plt.plot([mn - pad, mx + pad], [mn - pad, mx + pad], linestyle="--")
@@ -794,8 +796,8 @@ def save_per_league_outputs(idata, train_df, holdout_df, prediction_summary, bas
                 "prediction_interval_coverage": None,
             }
         else:
-            y_true = league_holdout_df["Points"].values
-            y_pred = league_holdout_df["Predicted Points"].values
+            y_true = league_holdout_df["Points per game"].values
+            y_pred = league_holdout_df["Predicted Points per game"].values
 
             league_metrics = {
                 "League": league,
@@ -828,7 +830,7 @@ def save_outputs(idata, train_df, holdout_df, prediction_summary, preprocessing_
     output_dir.mkdir(parents=True, exist_ok=True)
     save_run_config(run_config, output_dir)
 
-    y_true = holdout_df["Points"].values
+    y_true = holdout_df["Points per game"].values
     predictions = prediction_summary["mean"]
     rmse = float(np.sqrt(mean_squared_error(y_true, predictions)))
     mae = float(mean_absolute_error(y_true, predictions))
@@ -913,6 +915,122 @@ def save_outputs(idata, train_df, holdout_df, prediction_summary, preprocessing_
 
     return diagnostics
 
+def plot_shap_outputs(shap_values, holdout_df, feature_cols, output_dir):
+        
+        X_holdout = holdout_df[feature_cols].values.astype(float)
+        leagues = sorted(holdout_df["League"].unique())
+
+        league_mean_shap = []
+        for league in leagues:
+            league_mask = holdout_df["League"].values == league
+            league_shap = shap_values[league_mask]
+            if league_shap.shape[0] == 0:
+                league_mean_shap.append([np.nan] * len(feature_cols))
+            else:
+                league_mean_shap.append(league_shap.mean(axis=0))
+
+        heatmap_df = pd.DataFrame(league_mean_shap, index=leagues, columns=feature_cols)
+
+        fig, ax = plt.subplots(figsize=(14, max(8, len(leagues) * 0.6)))
+        im = ax.imshow(heatmap_df.values, aspect="auto", cmap="RdBu_r")
+
+        ax.set_xticks(range(len(feature_cols)))
+        ax.set_xticklabels(
+            [col.replace("Prev ", "") for col in feature_cols],
+            rotation=45,
+            ha="right",
+            fontsize=11,
+        )
+        ax.set_xlabel("Previous Season Feature", fontsize=13, labelpad=10)
+
+        ax.set_yticks(range(len(leagues)))
+        ax.set_yticklabels(leagues, fontsize=11)
+        ax.set_ylabel("League", fontsize=13, labelpad=10)
+
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label("Mean SHAP Value", fontsize=11)
+
+        ax.set_title(
+            "Bayesian Hierarchical Regression",
+            fontsize=15,
+            pad=15,
+        )
+
+        ax.set_xticks(np.arange(-0.5, len(feature_cols), 1), minor=True)
+        ax.set_yticks(np.arange(-0.5, len(leagues), 1), minor=True)
+        ax.grid(which="minor", color="white", linewidth=0.5)
+        ax.tick_params(which="minor", bottom=False, left=False)
+
+        plt.tight_layout()
+        plt.savefig(output_dir / "shap_league_heatmap.png", dpi=200, bbox_inches="tight")
+        plt.close()
+
+        print(f"SHAP heatmap saved to {output_dir}")
+
+def compute_and_save_shap(idata, train_df, holdout_df, feature_cols, league_to_idx, preprocessing_artifacts, output_dir):
+    
+    substantive_cols = [col for col in feature_cols if not col.endswith("_missing")]
+    substantive_idx = [feature_cols.index(col) for col in substantive_cols]
+
+    alpha_samples = (
+        idata.posterior["alpha"]
+        .stack(sample=("chain", "draw"))
+        .transpose("sample", "group")
+        .values
+    )
+    beta_samples = (
+        idata.posterior["beta"]
+        .stack(sample=("chain", "draw"))
+        .transpose("sample", "group", "predictor")
+        .values
+    )
+
+    alpha_mean = alpha_samples.mean(axis=0)
+    beta_mean = beta_samples.mean(axis=0)
+
+    y_mean = preprocessing_artifacts.y_mean
+    y_std = preprocessing_artifacts.y_std
+
+    def predict_fn(X):
+        n = X.shape[0]
+        X_full = np.zeros((n, len(feature_cols)))
+        for i, idx in enumerate(substantive_idx):
+            X_full[:, idx] = X[:, i]
+
+        group_idx_full = holdout_df["League"].map(league_to_idx).values.astype(int)
+        group_idx = np.resize(group_idx_full, n)
+        alpha_selected = alpha_mean[group_idx]
+        beta_selected = beta_mean[group_idx, :]
+        mu_std = alpha_selected + (beta_selected * X_full).sum(axis=1)
+        return mu_std * y_std + y_mean
+
+    X_holdout = holdout_df[substantive_cols].values.astype(float)
+    X_train = train_df[substantive_cols].values.astype(float)
+
+    background = shap.kmeans(X_train, k=50)
+    explainer = shap.KernelExplainer(predict_fn, background)
+
+    print("Computing SHAP values (this may take a few minutes)...")
+    shap_values = explainer.shap_values(X_holdout)
+
+    shap_df = pd.DataFrame(shap_values, columns=substantive_cols)
+    shap_df["League"] = holdout_df["League"].values
+    shap_df["Club"] = holdout_df["Club"].values
+    shap_df["Season"] = holdout_df["Season"].values
+    shap_df.to_csv(output_dir / "shap_values.csv", index=False)
+
+    shap_importance = pd.DataFrame({
+        "Feature": substantive_cols,
+        "MeanAbsSHAP": np.abs(shap_values).mean(axis=0),
+    }).sort_values("MeanAbsSHAP", ascending=False)
+    shap_importance.to_csv(output_dir / "shap_importance.csv", index=False)
+
+    print(f"SHAP outputs saved to {output_dir}")
+
+    plot_shap_outputs(shap_values, holdout_df, substantive_cols, output_dir)
+
+    return shap_values, shap_importance
+
 def make_objective(train_df, holdout_df, preprocessing_artifacts, run_config):
     """
     Returns a closure over the preprocessed data so Optuna can call it
@@ -953,7 +1071,7 @@ def make_objective(train_df, holdout_df, preprocessing_artifacts, run_config):
         )
 
         rmse = float(np.sqrt(np.mean(
-            (holdout_df["Points"].values - pred["mean"]) ** 2
+            (holdout_df["Points per game"].values - pred["mean"]) ** 2
         )))
 
         penalised_rmse = rmse + divergences * 0.5
@@ -963,32 +1081,42 @@ def make_objective(train_df, holdout_df, preprocessing_artifacts, run_config):
 
     return objective
 
+
 def main():
     args = parse_mode_args("Fit the hierarchical Bayesian football model.")
-    run_config = build_run_config(args.mode)
-    optuna_output_dir = run_config.output_dir / "optuna"
-    optuna_output_dir.mkdir(parents=True, exist_ok=True)
-    np.random.seed(run_config.random_seed)
+    np.random.seed(build_run_config(args.mode, "combined").random_seed)
 
     print("Loading and cleaning data...")
     df = load_and_clean_dataset(INPUT_PATH)
+    run_config = build_run_config(args.mode, "combined")
     df = maybe_filter_development_leagues(df, run_config)
 
     print("Building club-season dataset with previous-season predictors...")
     lagged_df = build_lagged_dataset(df)
     print(f"Lagged rows available: {len(lagged_df)}")
 
-    print(f"Creating train/holdout split with holdout season {HOLDOUT_SEASON}...")
-    train_raw, holdout_raw = split_train_holdout(lagged_df, run_config.holdout_season)
+    optuna_output_dir = run_config.output_dir / "optuna"
+    optuna_output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Remove both holdout seasons from training data
+    train_raw = lagged_df[~lagged_df["Season"].isin(HOLDOUT_SEASONS)].copy()
+    holdout_raw = lagged_df[lagged_df["Season"].isin(HOLDOUT_SEASONS)].copy()
+
+    if train_raw.empty:
+        raise ValueError("Training data is empty after removing all holdout seasons.")
+    if holdout_raw.empty:
+        raise ValueError("Holdout data is empty — no rows matched the holdout seasons.")
+
+    print(f"Train rows (excluding all holdout seasons): {len(train_raw)}")
+    print(f"Holdout rows (combined {HOLDOUT_SEASONS}): {len(holdout_raw)}")
 
     print("Fitting preprocessing on training data only...")
     train_df, preprocessing_artifacts = fit_preprocessor(train_raw)
     holdout_df = apply_preprocessor(holdout_raw, preprocessing_artifacts)
 
-    base_config = build_run_config(args.mode)
-    search_config = type(base_config)(
+    search_config = type(run_config)(
         **{
-            **base_config.__dict__,
+            **run_config.__dict__,
             "draws": 200,
             "tune": 200,
         }
@@ -1000,11 +1128,9 @@ def main():
         sampler=optuna.samplers.TPESampler(seed=run_config.random_seed),
         pruner=optuna.pruners.MedianPruner(n_startup_trials=5),
     )
-    
     study.optimize(
         make_objective(train_df, holdout_df, preprocessing_artifacts, search_config),
-        n_trials=40,
-        #timeout=7200,  # stop after 2 hours regardless of n_trials
+        n_trials=1,
     )
 
     best = study.best_params
@@ -1026,24 +1152,21 @@ def main():
         print(f"  {param}: default={default_val:.2f} → tuned={tuned_val:.4f} (Δ={tuned_val - default_val:+.4f})")
 
     print(f"\nBest trial RMSE: {study.best_value:.4f}")
-    print(f"Best hyperparams: {study.best_params}")
 
-    optuna_df = study.trials_dataframe()
-    optuna_df.to_csv(run_config.output_dir / "optuna_trials.csv", index=False)
-
+    study.trials_dataframe().to_csv(run_config.output_dir / "optuna_trials.csv", index=False)
     with open(run_config.output_dir / "optuna_best_params.json", "w") as f:
         json.dump(
             {
-            "best_value": study.best_value,
-            "best_params": study.best_params,
-            "best_trial": study.best_trial.number,
+                "best_value": study.best_value,
+                "best_params": study.best_params,
+                "best_trial": study.best_trial.number,
             },
             f,
             indent=2,
         )
 
-    print(f"Train rows: {len(train_df)}")
-    print(f"Holdout rows ({run_config.holdout_season}): {len(holdout_df)}")
+    print(f"\nTrain rows: {len(train_df)}")
+    print(f"Holdout rows (combined {HOLDOUT_SEASONS}): {len(holdout_df)}")
     print(f"Running mode: {run_config.mode}")
 
     print("Fitting Bayesian hierarchical model...")
@@ -1051,10 +1174,10 @@ def main():
         train_df=train_df,
         feature_cols=preprocessing_artifacts.feature_cols,
         run_config=run_config,
-        hyperparams=study.best_params,
+        hyperparams=best,
     )
 
-    print("Predicting holdout season...")
+    print("Predicting combined holdout seasons...")
     prediction_summary = predict_holdout(
         idata=idata,
         holdout_df=holdout_df,
@@ -1075,12 +1198,44 @@ def main():
         run_config=run_config,
     )
 
-    print("\n=== HOLDOUT METRICS ===")
+    print("\n=== PER-SEASON BREAKDOWN ===")
+    pred_df = build_holdout_prediction_df(holdout_df, prediction_summary)
+    for season in HOLDOUT_SEASONS:
+        season_df = pred_df[pred_df["Season"] == season]
+        if season_df.empty:
+            print(f"{season}: no rows found")
+            continue
+        y_true = season_df["Points per game"].values
+        y_pred = season_df["Predicted Points per game"].values
+        print(
+            f"{season}: RMSE={np.sqrt(mean_squared_error(y_true, y_pred)):.4f}, "
+            f"MAE={mean_absolute_error(y_true, y_pred):.4f}, "
+            f"R2={safe_r2_value(y_true, y_pred):.4f}"
+        )
+
+    print("\n=== OVERALL COMBINED HOLDOUT METRICS ===")
     for k, v in diagnostics.items():
         print(f"{k}: {v}")
+
+    shap_dir = run_config.output_dir / "shap"
+    shap_dir.mkdir(parents=True, exist_ok=True)
+    print("\nComputing SHAP values...")
+    shap_values, shap_importance = compute_and_save_shap(
+        idata=idata,
+        train_df=train_df,
+        holdout_df=holdout_df,
+        feature_cols=preprocessing_artifacts.feature_cols,
+        league_to_idx=league_to_idx,
+        preprocessing_artifacts=preprocessing_artifacts,
+        output_dir=shap_dir,
+    )
+    print("\n=== SHAP FEATURE IMPORTANCE ===")
+    print(shap_importance.to_string(index=False))
 
     print(f"\nSaved outputs to: {run_config.output_dir.resolve()}")
 
 
 if __name__ == "__main__":
     main()
+
+

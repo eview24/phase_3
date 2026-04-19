@@ -9,14 +9,18 @@ import argparse
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import re
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INPUT_PATH = PROJECT_ROOT.parent / "dataset.ods"
 OUTPUT_ROOT = PROJECT_ROOT / "outputs"
-HOLDOUT_SEASON = "2024/25"
+HOLDOUT_SEASONS = ["2023/24", "2024/25"]
 DEFAULT_MODE = "development"
 
+def slugify_filename(value):
+    slug = re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower())
+    return slug.strip("_") or "unknown"
 
 @dataclass(frozen=True)
 class RunConfig:
@@ -28,7 +32,7 @@ class RunConfig:
     random_seed: int
     progressbar: bool
     output_dir: Path
-    holdout_season: str = HOLDOUT_SEASON
+    holdout_season: str
     coefficient_hdi_prob: float = 0.94
     prediction_hdi_prob: float = 0.94
 
@@ -58,6 +62,7 @@ MODE_SETTINGS = {
 }
 
 
+
 def parse_mode_args(description):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
@@ -69,11 +74,11 @@ def parse_mode_args(description):
     return parser.parse_args()
 
 
-def build_run_config(mode):
+def build_run_config(mode, holdout_season):
     settings = MODE_SETTINGS[mode]
-    output_dir = OUTPUT_ROOT / mode
+    output_dir = OUTPUT_ROOT / mode / slugify_filename(holdout_season)
     output_dir.mkdir(parents=True, exist_ok=True)
-    return RunConfig(mode=mode, output_dir=output_dir, **settings)
+    return RunConfig(mode=mode, output_dir=output_dir, holdout_season=holdout_season, **settings)
 
 
 def save_run_config(run_config, output_dir):
