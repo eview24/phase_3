@@ -1,0 +1,73 @@
+League,Feature,Coefficient
+Bundesliga,Prev Expenditure,0.0006345108809118116
+Bundesliga,Prev Income,0.10947799428006455
+Bundesliga,Prev Squad Value,0.20664904309210333
+Bundesliga,Prev Avg. Squad Age,0.026286320372909355
+Bundesliga,Prev Goals For,0.5389973376651864
+Bundesliga,Prev Goals Against,-0.4711432238439684
+Bundesliga,Prev Points,-0.3191776642916187
+Bundesliga,Prev Expenditure_missing,-0.017664868933143587
+Bundesliga,Prev Income_missing,-0.08884029595545916
+Championship,Prev Expenditure,0.23881244728572404
+Championship,Prev Income,-0.10097898266414941
+Championship,Prev Squad Value,0.31569356065148996
+Championship,Prev Avg. Squad Age,-0.06448219370356258
+Championship,Prev Goals For,0.11972236736024353
+Championship,Prev Goals Against,-0.2208263968433256
+Championship,Prev Points,-0.04588904140082781
+Championship,Prev Expenditure_missing,-0.13071594673028078
+Championship,Prev Income_missing,0.0346081206998943
+LaLiga,Prev Expenditure,0.017067628574712584
+LaLiga,Prev Income,0.056004582075676684
+LaLiga,Prev Squad Value,0.24158947858841626
+LaLiga,Prev Avg. Squad Age,-0.01847156205326578
+LaLiga,Prev Goals For,0.14392721155547317
+LaLiga,Prev Goals Against,-0.08413019361278416
+LaLiga,Prev Points,0.3581410388386452
+LaLiga,Prev Expenditure_missing,-0.019267086607008457
+LaLiga,Prev Income_missing,-0.0
+League One,Prev Expenditure,0.21851992877705997
+League One,Prev Income,-0.04463153874337891
+League One,Prev Squad Value,0.31829965516203634
+League One,Prev Avg. Squad Age,-0.07315554432296949
+League One,Prev Goals For,0.14027908192409483
+League One,Prev Goals Against,-0.2043224263502288
+League One,Prev Points,-0.05949584129307816
+League One,Prev Expenditure_missing,-0.09870091754333972
+League One,Prev Income_missing,0.0284672403666224
+League Two,Prev Expenditure,0.0949383151271974
+League Two,Prev Income,0.0
+League Two,Prev Squad Value,0.010093012986466811
+League Two,Prev Avg. Squad Age,-0.0
+League Two,Prev Goals For,0.055679422411655896
+League Two,Prev Goals Against,-0.19014265995870377
+League Two,Prev Points,0.0
+League Two,Prev Expenditure_missing,0.0038720572802765437
+League Two,Prev Income_missing,0.0
+Ligue One,Prev Expenditure,0.15786322354056737
+Ligue One,Prev Income,-0.1618824522559961
+Ligue One,Prev Squad Value,0.25397966972127056
+Ligue One,Prev Avg. Squad Age,-0.09217661748665995
+Ligue One,Prev Goals For,0.2989885755709013
+Ligue One,Prev Goals Against,-0.16352406032619132
+Ligue One,Prev Points,-0.028270919454701202
+Ligue One,Prev Expenditure_missing,0.015080848404201408
+Ligue One,Prev Income_missing,0.042856992432514514
+Premier League,Prev Expenditure,0.0779362426577343
+Premier League,Prev Income,-0.04162366779368677
+Premier League,Prev Squad Value,0.4719553957840209
+Premier League,Prev Avg. Squad Age,-0.035049153580376365
+Premier League,Prev Goals For,0.37561121204433756
+Premier League,Prev Goals Against,-0.28802532322806856
+Premier League,Prev Points,-0.1759244241066116
+Premier League,Prev Expenditure_missing,-0.11174097017458351
+Premier League,Prev Income_missing,0.0
+Serie A,Prev Expenditure,0.0251094614642075
+Serie A,Prev Income,0.0
+Serie A,Prev Squad Value,0.2206029884382419
+Serie A,Prev Avg. Squad Age,0.0
+Serie A,Prev Goals For,0.09133089270722353
+Serie A,Prev Goals Against,-0.07601269692521444
+Serie A,Prev Points,0.41024929076953814
+Serie A,Prev Expenditure_missing,0.0
+Serie A,Prev Income_missing,0.0

@@ -1,0 +1,14 @@
+{
+  "league": "League One",
+  "n_train": 188,
+  "n_holdout": 24,
+  "alpha": 0.0016166642731677973,
+  "l1_ratio": 0.9882156020571693,
+  "n_active_features": 9,
+  "train_r2": 0.2232295972153603,
+  "train_rmse": 14.580540929356998,
+  "val_rmse": 0.8564797597161256,
+  "holdout_rmse": 16.671467960695107,
+  "holdout_mae": 14.088714424134963,
+  "holdout_r2": 0.1711595110403078
+}

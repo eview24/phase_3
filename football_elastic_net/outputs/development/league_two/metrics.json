@@ -1,0 +1,14 @@
+{
+  "league": "League Two",
+  "n_train": 176,
+  "n_holdout": 22,
+  "alpha": 0.14371681257531851,
+  "l1_ratio": 0.47170343670857734,
+  "n_active_features": 5,
+  "train_r2": 0.0920046232486249,
+  "train_rmse": 14.20324948022379,
+  "val_rmse": 0.8153181117996746,
+  "holdout_rmse": 12.405948542899983,
+  "holdout_mae": 10.452784061426057,
+  "holdout_r2": -0.012604788708550085
+}

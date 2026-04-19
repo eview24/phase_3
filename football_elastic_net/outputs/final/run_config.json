@@ -1,0 +1,8 @@
+{
+  "mode": "final",
+  "output_dir": "/Users/user/Desktop/phase_3/football_elastic_net/outputs/final",
+  "holdout_season": "2024/25",
+  "val_season": "2023/24",
+  "random_seed": 42,
+  "n_trials": 200
+}

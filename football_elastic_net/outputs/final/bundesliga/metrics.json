@@ -1,0 +1,14 @@
+{
+  "league": "Bundesliga",
+  "n_train": 127,
+  "n_holdout": 16,
+  "alpha": 0.00010061054029105305,
+  "l1_ratio": 0.0005380800023113037,
+  "n_active_features": 9,
+  "train_r2": 0.6238336591401228,
+  "train_rmse": 8.98436310938108,
+  "val_rmse": 1.0093362044478098,
+  "holdout_rmse": 8.454306585690253,
+  "holdout_mae": 6.897518532241164,
+  "holdout_r2": 0.6383286535365182
+}

@@ -1,0 +1,14 @@
+{
+  "league": "Premier League",
+  "n_train": 159,
+  "n_holdout": 19,
+  "alpha": 0.013309333177560627,
+  "l1_ratio": 0.9118844276279587,
+  "n_active_features": 8,
+  "train_r2": 0.5722547594577317,
+  "train_rmse": 11.774438762653096,
+  "val_rmse": 0.6860740352873367,
+  "holdout_rmse": 12.245820405089573,
+  "holdout_mae": 9.079628569252641,
+  "holdout_r2": 0.411646281146713
+}

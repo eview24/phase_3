@@ -1,0 +1,14 @@
+{
+  "league": "Championship",
+  "n_train": 185,
+  "n_holdout": 20,
+  "alpha": 0.00010009557420357197,
+  "l1_ratio": 0.0006250717901416618,
+  "n_active_features": 9,
+  "train_r2": 0.2485013029167099,
+  "train_rmse": 13.575502524437736,
+  "val_rmse": 0.7507853455053858,
+  "holdout_rmse": 13.52122054333988,
+  "holdout_mae": 10.829963986637642,
+  "holdout_r2": 0.3153707123216132
+}

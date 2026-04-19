@@ -1,7 +1,4 @@
 # model outputs - regenerate by running the scripts
-football_elastic_net/outputs/*
-!football_elastic_net/outputs/.gitkeep
-
 football_bayes_project/outputs/*
 !football_bayes_project/outputs/.gitkeep
 
