@@ -15,12 +15,12 @@ import optuna
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import shap
 from sklearn.linear_model import ElasticNet
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
-from pipeline_config import INPUT_PATH, build_run_config, parse_mode_args, save_run_config
+from pipeline_config import INPUT_PATH, VAL_SEASON, build_run_config, parse_mode_args, save_run_config
 
 warnings.filterwarnings("ignore")
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -201,14 +201,17 @@ def build_lagged_dataset(df):
     return lagged
 
 
-def split_train_holdout(df, holdout_season):
-    train = df[df["Season"] != holdout_season].copy()
+def split_train_val_holdout(df, val_season, holdout_season):
+    train = df[(df["Season"] != val_season) & (df["Season"] != holdout_season)].copy()
+    val = df[df["Season"] == val_season].copy()
     holdout = df[df["Season"] == holdout_season].copy()
     if train.empty:
-        raise ValueError("Training split is empty after applying the holdout season filter.")
+        raise ValueError("Training split is empty.")
+    if val.empty:
+        raise ValueError(f"Val split is empty for season '{val_season}'.")
     if holdout.empty:
         raise ValueError(f"Holdout split is empty for season '{holdout_season}'.")
-    return train, holdout
+    return train, val, holdout
 
 
 # --- preprocessing ---
@@ -305,52 +308,41 @@ def apply_transforms(frame, feature_cols, imputation_artifacts, fit_scaler=None)
 
 # modelling 
 
-def fit_league_model(train_league, feature_cols, imputation_artifacts, cv_folds, random_seed, n_trials):
+def fit_league_model(train_league, val_league, feature_cols, imputation_artifacts, random_seed, n_trials):
     """
-    Select hyperparameters using Optuna, then re-run CV with the
-    best parameters.
+    Select hyperparameters using Optuna validated on the held-out val season,
+    then refit on training data with the best parameters.
     """
-    y_train = train_league["Points"].values.astype(float)
-    X_train, scaler = apply_transforms(train_league, feature_cols, imputation_artifacts)
+    y_train_raw = train_league["Points"].values.astype(float)
+    y_mean = float(y_train_raw.mean())
+    y_std = float(y_train_raw.std())
+    if y_std == 0:
+        raise ValueError("Training target has zero variance; cannot standardise.")
+    y_train = (y_train_raw - y_mean) / y_std
 
-    cv = KFold(n_splits=cv_folds, shuffle=True, random_state=random_seed)
+    X_train, scaler = apply_transforms(train_league, feature_cols, imputation_artifacts)
+    X_val, _ = apply_transforms(val_league, feature_cols, imputation_artifacts, fit_scaler=scaler)
+    y_val = (val_league["Points"].values.astype(float) - y_mean) / y_std
 
     def objective(trial):
         alpha = trial.suggest_float("alpha", ALPHA_LOW, ALPHA_HIGH, log=True)
         l1_ratio = trial.suggest_float("l1_ratio", 0.0, 1.0)
-        scores = []
-        for train_idx, val_idx in cv.split(X_train):
-            model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=10_000)
-            model.fit(X_train[train_idx], y_train[train_idx])
-            r2 = _safe_r2(y_train[val_idx], model.predict(X_train[val_idx]))
-            scores.append(r2 if r2 is not None else -1.0)
-        return float(np.mean(scores))
+        model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=10_000)
+        model.fit(X_train, y_train)
+        return float(np.sqrt(mean_squared_error(y_val, model.predict(X_val))))
 
     study = optuna.create_study(
-        direction="maximize",
+        direction="minimize",
         sampler=optuna.samplers.TPESampler(seed=random_seed),
     )
     study.optimize(objective, n_trials=n_trials)
 
     best = study.best_params
+    val_rmse = float(study.best_value)
     en = ElasticNet(alpha=best["alpha"], l1_ratio=best["l1_ratio"], max_iter=10_000)
     en.fit(X_train, y_train)
 
-    cv_scores = _cross_val_r2(X_train, y_train, best["alpha"], best["l1_ratio"], cv)
-
-    return en, scaler, cv_scores
-
-
-def _cross_val_r2(X, y, alpha, l1_ratio, cv):
-    """CV R² scores for a fixed alpha/l1_ratio (used after hyperparameter selection)."""
-    scores = []
-    for train_idx, val_idx in cv.split(X):
-        model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=10_000)
-        model.fit(X[train_idx], y[train_idx])
-        y_pred_val = model.predict(X[val_idx])
-        r2 = _safe_r2(y[val_idx], y_pred_val)
-        scores.append(r2 if r2 is not None else np.nan)
-    return np.array(scores)
+    return en, scaler, y_mean, y_std, val_rmse, X_train
 
 
 def _safe_r2(y_true, y_pred):
@@ -359,7 +351,32 @@ def _safe_r2(y_true, y_pred):
     return float(r2_score(y_true, y_pred))
 
 
-# outputs 
+# outputs
+
+def save_shap_outputs(en, X_train, X_holdout, feature_cols, league_dir):
+    explainer = shap.LinearExplainer(en, X_train)
+    shap_values = explainer.shap_values(X_holdout)
+
+    plt.figure()
+    shap.summary_plot(shap_values, X_holdout, feature_names=feature_cols, show=False)
+    plt.tight_layout()
+    plt.savefig(league_dir / "shap_summary.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+    plt.figure()
+    shap.summary_plot(shap_values, X_holdout, feature_names=feature_cols,
+                      plot_type="bar", show=False)
+    plt.tight_layout()
+    plt.savefig(league_dir / "shap_bar.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+    pd.DataFrame({
+        "feature": feature_cols,
+        "mean_abs_shap": np.abs(shap_values).mean(axis=0),
+    }).sort_values("mean_abs_shap", ascending=False).to_csv(
+        league_dir / "shap_mean_abs.csv", index=False
+    )
+
 
 def save_coefficients_plot(coef_df, title, output_path):
     fig, ax = plt.subplots(figsize=(7, max(3, len(coef_df) * 0.45)))
@@ -393,12 +410,14 @@ def save_league_outputs(
     league,
     en,
     feature_cols,
-    cv_scores,
+    val_rmse,
     y_train,
     y_train_pred,
     y_holdout,
     y_holdout_pred,
     league_dir,
+    X_train=None,
+    X_holdout=None,
 ):
     league_dir.mkdir(parents=True, exist_ok=True)
 
@@ -427,8 +446,7 @@ def save_league_outputs(
         "n_active_features": int((np.abs(en.coef_) > 0).sum()),
         "train_r2": float(r2_score(y_train, y_train_pred)),
         "train_rmse": float(np.sqrt(mean_squared_error(y_train, y_train_pred))),
-        "cv_r2_mean": float(np.nanmean(cv_scores)),
-        "cv_r2_std": float(np.nanstd(cv_scores)),
+        "val_rmse": val_rmse,
         "holdout_rmse": float(np.sqrt(mean_squared_error(y_holdout, y_holdout_pred))) if has_holdout else None,
         "holdout_mae": float(mean_absolute_error(y_holdout, y_holdout_pred)) if has_holdout else None,
         "holdout_r2": _safe_r2(y_holdout, y_holdout_pred) if has_holdout else None,
@@ -455,6 +473,9 @@ def save_league_outputs(
                 output_path=league_dir / "actual_vs_predicted.png",
             )
 
+    if X_train is not None and X_holdout is not None and len(X_holdout) > 0:
+        save_shap_outputs(en, X_train, X_holdout, feature_cols, league_dir)
+
     return metrics
 
 
@@ -472,10 +493,12 @@ def main():
     lagged_df = build_lagged_dataset(df)
     print(f"Lagged rows available: {len(lagged_df)}")
 
-    print(f"Splitting train / holdout (holdout season = {run_config.holdout_season})...")
-    train_raw, holdout_raw = split_train_holdout(lagged_df, run_config.holdout_season)
-    print(f"Train rows: {len(train_raw)} | Holdout rows: {len(holdout_raw)}")
-    print(f"Mode: {run_config.mode} ({run_config.cv_folds}-fold CV)\n")
+    print(f"Splitting train / val ({run_config.val_season}) / holdout ({run_config.holdout_season})...")
+    train_raw, val_raw, holdout_raw = split_train_val_holdout(
+        lagged_df, run_config.val_season, run_config.holdout_season
+    )
+    print(f"Train rows: {len(train_raw)} | Val rows: {len(val_raw)} | Holdout rows: {len(holdout_raw)}")
+    print(f"Mode: {run_config.mode}\n")
 
     feature_cols = build_feature_cols()
     leagues = sorted(lagged_df["League"].unique())
@@ -490,30 +513,34 @@ def main():
         print(f"=== {league} ===")
 
         train_league = train_raw[train_raw["League"] == league].copy()
+        val_league = val_raw[val_raw["League"] == league].copy()
         holdout_league = holdout_raw[holdout_raw["League"] == league].copy()
 
         if len(train_league) < 10:
             print(f"  Skipping: only {len(train_league)} training rows (need >= 10).\n")
             continue
+        if val_league.empty:
+            print(f"  Skipping: no val rows for {league}.\n")
+            continue
 
-        en, scaler, cv_scores = fit_league_model(
+        en, scaler, y_mean, y_std, val_rmse, X_train = fit_league_model(
             train_league=train_league,
+            val_league=val_league,
             feature_cols=feature_cols,
             imputation_artifacts=imputation_artifacts,
-            cv_folds=run_config.cv_folds,
             random_seed=run_config.random_seed,
             n_trials=run_config.n_trials,
         )
 
-        X_train, _ = apply_transforms(train_league, feature_cols, imputation_artifacts, fit_scaler=scaler)
         y_train = train_league["Points"].values.astype(float)
-        y_train_pred = en.predict(X_train)
+        y_train_pred = en.predict(X_train) * y_std + y_mean
 
         if len(holdout_league) >= 2:
             X_holdout, _ = apply_transforms(holdout_league, feature_cols, imputation_artifacts, fit_scaler=scaler)
             y_holdout = holdout_league["Points"].values.astype(float)
-            y_holdout_pred = en.predict(X_holdout)
+            y_holdout_pred = en.predict(X_holdout) * y_std + y_mean
         else:
+            X_holdout = None
             y_holdout, y_holdout_pred = None, None
             print(f"  Warning: only {len(holdout_league)} holdout rows — skipping holdout evaluation.")
 
@@ -522,12 +549,14 @@ def main():
             league=league,
             en=en,
             feature_cols=feature_cols,
-            cv_scores=cv_scores,
+            val_rmse=val_rmse,
             y_train=y_train,
             y_train_pred=y_train_pred,
             y_holdout=y_holdout,
             y_holdout_pred=y_holdout_pred,
             league_dir=league_dir,
+            X_train=X_train,
+            X_holdout=X_holdout,
         )
 
         all_metrics.append(metrics)
@@ -542,7 +571,7 @@ def main():
         )
 
         print(f"  Train R²:  {metrics['train_r2']:.3f}")
-        print(f"  CV R²:     {metrics['cv_r2_mean']:.3f} ± {metrics['cv_r2_std']:.3f}")
+        print(f"  Val RMSE:  {metrics['val_rmse']:.4f} (standardised)")
         if metrics["holdout_r2"] is not None:
             print(f"  Holdout R²: {metrics['holdout_r2']:.3f} | RMSE: {metrics['holdout_rmse']:.4f} | MAE: {metrics['holdout_mae']:.4f}")
         print(f"  alpha={metrics['alpha']:.5f} | l1_ratio={metrics['l1_ratio']:.2f} | active features: {metrics['n_active_features']}/{len(feature_cols)}")

@@ -12,6 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INPUT_PATH = PROJECT_ROOT.parent / "dataset.ods"
 OUTPUT_ROOT = PROJECT_ROOT / "outputs"
 HOLDOUT_SEASON = "2024/25"
+VAL_SEASON = "2023/24"
 DEFAULT_MODE = "development"
 
 
@@ -20,7 +21,7 @@ class RunConfig:
     mode: str
     output_dir: Path
     holdout_season: str = HOLDOUT_SEASON
-    cv_folds: int = 5
+    val_season: str = VAL_SEASON
     random_seed: int = 42
     n_trials: int = 100
 
@@ -32,12 +33,10 @@ class RunConfig:
 
 MODE_SETTINGS = {
     "development": {
-        "cv_folds": 5,
         "random_seed": 42,
         "n_trials": 50,
     },
     "final": {
-        "cv_folds": 10,
         "random_seed": 42,
         "n_trials": 200,
     },
@@ -50,7 +49,7 @@ def parse_mode_args(description):
         "--mode",
         choices=sorted(MODE_SETTINGS.keys()),
         default=DEFAULT_MODE,
-        help="Run mode controlling CV folds and output location.",
+        help="Run mode controlling output location and number of Optuna trials.",
     )
     return parser.parse_args()
 
