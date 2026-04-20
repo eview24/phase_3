@@ -18,6 +18,7 @@ import pandas as pd
 import shap
 from sklearn.linear_model import ElasticNet
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 
 from pipeline_config import INPUT_PATH, VAL_SEASON, build_run_config, parse_mode_args, save_run_config
@@ -29,13 +30,14 @@ RAW_REQUIRED_COLUMNS = [
     "Season",
     "Club",
     "Points",
+    "Points per game",
     "Squad Value",
     "Avg. Squad Age",
     "Goals For",
     "Goals Against",
 ]
 RAW_OPTIONAL_COLUMNS = ["Expenditure", "Income"]
-RAW_NUMERIC_COLUMNS = ["Avg. Squad Age", "Points", "Goals For", "Goals Against"]
+RAW_NUMERIC_COLUMNS = ["Avg. Squad Age", "Points", "Points per game", "Goals For", "Goals Against"]
 RAW_FINANCIAL_COLUMNS = ["Expenditure", "Income", "Squad Value"]
 
 SOURCE_FEATURE_COLUMNS = [
@@ -163,7 +165,7 @@ def load_and_clean_dataset(path):
         dfs.append(temp)
     df = pd.concat(dfs, ignore_index=True)
     df = df.dropna(
-        subset=["Points", "Squad Value", "Avg. Squad Age", "Goals For", "Goals Against"]
+        subset=["Points", "Points per game", "Squad Value", "Avg. Squad Age", "Goals For", "Goals Against"]
     ).copy()
     return df
 
@@ -308,12 +310,12 @@ def apply_transforms(frame, feature_cols, imputation_artifacts, fit_scaler=None)
 
 # modelling 
 
-def fit_league_model(train_league, val_league, feature_cols, imputation_artifacts, random_seed, n_trials):
+def fit_league_model(train_league, feature_cols, imputation_artifacts, cv_folds, random_seed, n_trials):
     """
-    Select hyperparameters using Optuna validated on the held-out val season,
-    then refit on training data with the best parameters.
+    Select hyperparameters using Optuna with KFold CV on training data,
+    then refit on full training data with the best parameters.
     """
-    y_train_raw = train_league["Points"].values.astype(float)
+    y_train_raw = train_league["Points per game"].values.astype(float)
     y_mean = float(y_train_raw.mean())
     y_std = float(y_train_raw.std())
     if y_std == 0:
@@ -321,15 +323,17 @@ def fit_league_model(train_league, val_league, feature_cols, imputation_artifact
     y_train = (y_train_raw - y_mean) / y_std
 
     X_train, scaler = apply_transforms(train_league, feature_cols, imputation_artifacts)
-    X_val, _ = apply_transforms(val_league, feature_cols, imputation_artifacts, fit_scaler=scaler)
-    y_val = (val_league["Points"].values.astype(float) - y_mean) / y_std
+    cv = KFold(n_splits=cv_folds, shuffle=True, random_state=random_seed)
 
     def objective(trial):
         alpha = trial.suggest_float("alpha", ALPHA_LOW, ALPHA_HIGH, log=True)
         l1_ratio = trial.suggest_float("l1_ratio", 0.0, 1.0)
-        model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=10_000)
-        model.fit(X_train, y_train)
-        return float(np.sqrt(mean_squared_error(y_val, model.predict(X_val))))
+        scores = []
+        for train_idx, val_idx in cv.split(X_train):
+            model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=10_000)
+            model.fit(X_train[train_idx], y_train[train_idx])
+            scores.append(float(np.sqrt(mean_squared_error(y_train[val_idx], model.predict(X_train[val_idx])))))
+        return float(np.mean(scores))
 
     study = optuna.create_study(
         direction="minimize",
@@ -338,11 +342,11 @@ def fit_league_model(train_league, val_league, feature_cols, imputation_artifact
     study.optimize(objective, n_trials=n_trials)
 
     best = study.best_params
-    val_rmse = float(study.best_value)
+    cv_rmse = float(study.best_value)
     en = ElasticNet(alpha=best["alpha"], l1_ratio=best["l1_ratio"], max_iter=10_000)
     en.fit(X_train, y_train)
 
-    return en, scaler, y_mean, y_std, val_rmse, X_train
+    return en, scaler, y_mean, y_std, cv_rmse, X_train
 
 
 def _safe_r2(y_true, y_pred):
@@ -377,6 +381,70 @@ def save_shap_outputs(en, X_train, X_holdout, feature_cols, league_dir):
         league_dir / "shap_mean_abs.csv", index=False
     )
 
+    return shap_values
+
+
+def plot_shap_heatmap(shap_values, holdout_df, feature_cols, output_dir, leagues_filter, filename):
+    actual_leagues = holdout_df["League"].unique()
+
+    # match filter names to actual names case-insensitively
+    name_map = {}
+    for f in leagues_filter:
+        for a in actual_leagues:
+            if f.lower().replace(" ", "") == a.lower().replace(" ", ""):
+                name_map[f] = a
+                break
+
+    matched = [name_map[f] for f in leagues_filter if f in name_map]
+    unmatched = [f for f in leagues_filter if f not in name_map]
+    if unmatched:
+        print(f"  Warning: leagues not found in data: {unmatched}")
+        print(f"  Available leagues: {sorted(actual_leagues)}")
+
+    mask = np.isin(holdout_df["League"].values, matched)
+    filtered_shap = shap_values[mask]
+    filtered_df = holdout_df[mask]
+
+    leagues = matched
+
+    league_mean_shap = []
+    for league in leagues:
+        league_mask = filtered_df["League"].values == league
+        league_shap = filtered_shap[league_mask]
+        league_mean_shap.append(league_shap.mean(axis=0))
+
+    heatmap_df = pd.DataFrame(league_mean_shap, index=leagues, columns=feature_cols)
+
+    _, ax = plt.subplots(figsize=(max(8, len(leagues) * 0.4), 8))
+    im = ax.imshow(heatmap_df.T.values, aspect="auto", cmap="RdBu_r")
+
+    ax.set_yticks(range(len(feature_cols)))
+    ax.set_yticklabels(
+        [col.replace("Prev ", "") for col in feature_cols],
+        fontsize=18,
+    )
+    ax.set_ylabel("Previous Season Feature", fontsize=20, labelpad=10)
+
+    ax.set_xticks(range(len(leagues)))
+    ax.set_xticklabels(leagues, rotation=45, ha="right", fontsize=18)
+    ax.set_xlabel("League", fontsize=20, labelpad=10)
+
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.ax.tick_params(labelsize=20)
+    cbar.set_label("Mean SHAP Value", fontsize=18)
+
+    ax.set_title("Elastic Net Regression", fontsize=22, pad=15)
+
+    ax.set_yticks(np.arange(-0.5, len(feature_cols), 1), minor=True)
+    ax.set_xticks(np.arange(-0.5, len(leagues), 1), minor=True)
+    ax.grid(which="minor", color="white", linewidth=0.5)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / filename, dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"SHAP heatmap saved to {output_dir / filename}")
+
 
 def save_coefficients_plot(coef_df, title, output_path):
     fig, ax = plt.subplots(figsize=(7, max(3, len(coef_df) * 0.45)))
@@ -398,8 +466,8 @@ def save_actual_vs_predicted_plot(y_true, y_pred, title, output_path):
     plt.figure(figsize=(6, 6))
     plt.scatter(y_true, y_pred)
     plt.plot([mn - pad, mx + pad], [mn - pad, mx + pad], linestyle="--")
-    plt.xlabel("Actual Points")
-    plt.ylabel("Predicted Points")
+    plt.xlabel("Actual Points per Game")
+    plt.ylabel("Predicted Points per Game")
     plt.title(title)
     plt.tight_layout()
     plt.savefig(output_path, dpi=200)
@@ -473,10 +541,11 @@ def save_league_outputs(
                 output_path=league_dir / "actual_vs_predicted.png",
             )
 
+    shap_vals = None
     if X_train is not None and X_holdout is not None and len(X_holdout) > 0:
-        save_shap_outputs(en, X_train, X_holdout, feature_cols, league_dir)
+        shap_vals = save_shap_outputs(en, X_train, X_holdout, feature_cols, league_dir)
 
-    return metrics
+    return metrics, shap_vals
 
 
 # main 
@@ -498,7 +567,7 @@ def main():
         lagged_df, run_config.val_season, run_config.holdout_season
     )
     print(f"Train rows: {len(train_raw)} | Val rows: {len(val_raw)} | Holdout rows: {len(holdout_raw)}")
-    print(f"Mode: {run_config.mode}\n")
+    print(f"Mode: {run_config.mode} ({run_config.cv_folds}-fold CV)\n")
 
     feature_cols = build_feature_cols()
     leagues = sorted(lagged_df["League"].unique())
@@ -508,36 +577,34 @@ def main():
 
     all_metrics = []
     all_coefs = []
+    all_shap_values = []
+    all_holdout_dfs = []
 
     for league in leagues:
         print(f"=== {league} ===")
 
         train_league = train_raw[train_raw["League"] == league].copy()
-        val_league = val_raw[val_raw["League"] == league].copy()
         holdout_league = holdout_raw[holdout_raw["League"] == league].copy()
 
         if len(train_league) < 10:
             print(f"  Skipping: only {len(train_league)} training rows (need >= 10).\n")
             continue
-        if val_league.empty:
-            print(f"  Skipping: no val rows for {league}.\n")
-            continue
 
-        en, scaler, y_mean, y_std, val_rmse, X_train = fit_league_model(
+        en, scaler, y_mean, y_std, cv_rmse, X_train = fit_league_model(
             train_league=train_league,
-            val_league=val_league,
             feature_cols=feature_cols,
             imputation_artifacts=imputation_artifacts,
+            cv_folds=run_config.cv_folds,
             random_seed=run_config.random_seed,
             n_trials=run_config.n_trials,
         )
 
-        y_train = train_league["Points"].values.astype(float)
+        y_train = train_league["Points per game"].values.astype(float)
         y_train_pred = en.predict(X_train) * y_std + y_mean
 
         if len(holdout_league) >= 2:
             X_holdout, _ = apply_transforms(holdout_league, feature_cols, imputation_artifacts, fit_scaler=scaler)
-            y_holdout = holdout_league["Points"].values.astype(float)
+            y_holdout = holdout_league["Points per game"].values.astype(float)
             y_holdout_pred = en.predict(X_holdout) * y_std + y_mean
         else:
             X_holdout = None
@@ -545,11 +612,11 @@ def main():
             print(f"  Warning: only {len(holdout_league)} holdout rows — skipping holdout evaluation.")
 
         league_dir = run_config.output_dir / slugify_filename(league)
-        metrics = save_league_outputs(
+        metrics, shap_vals = save_league_outputs(
             league=league,
             en=en,
             feature_cols=feature_cols,
-            val_rmse=val_rmse,
+            val_rmse=cv_rmse,
             y_train=y_train,
             y_train_pred=y_train_pred,
             y_holdout=y_holdout,
@@ -558,6 +625,10 @@ def main():
             X_train=X_train,
             X_holdout=X_holdout,
         )
+
+        if shap_vals is not None and len(holdout_league) >= 2:
+            all_shap_values.append(shap_vals)
+            all_holdout_dfs.append(holdout_league)
 
         all_metrics.append(metrics)
         all_coefs.append(
@@ -571,7 +642,7 @@ def main():
         )
 
         print(f"  Train R²:  {metrics['train_r2']:.3f}")
-        print(f"  Val RMSE:  {metrics['val_rmse']:.4f} (standardised)")
+        print(f"  CV RMSE:   {metrics['val_rmse']:.4f} (standardised)")
         if metrics["holdout_r2"] is not None:
             print(f"  Holdout R²: {metrics['holdout_r2']:.3f} | RMSE: {metrics['holdout_rmse']:.4f} | MAE: {metrics['holdout_mae']:.4f}")
         print(f"  alpha={metrics['alpha']:.5f} | l1_ratio={metrics['l1_ratio']:.2f} | active features: {metrics['n_active_features']}/{len(feature_cols)}")
@@ -583,6 +654,21 @@ def main():
     if all_coefs:
         pd.concat(all_coefs, ignore_index=True).to_csv(
             run_config.output_dir / "all_coefficients.csv", index=False
+        )
+
+    if all_shap_values:
+        combined_shap = np.vstack(all_shap_values)
+        combined_holdout = pd.concat(all_holdout_dfs, ignore_index=True)
+
+        plot_shap_heatmap(
+            combined_shap, combined_holdout, feature_cols, run_config.output_dir,
+            leagues_filter=["Premier League", "Championship", "League One", "League Two"],
+            filename="shap_heatmap_english.png",
+        )
+        plot_shap_heatmap(
+            combined_shap, combined_holdout, feature_cols, run_config.output_dir,
+            leagues_filter=["Premier League", "Bundesliga", "LaLiga", "Serie A", "Ligue One"],
+            filename="shap_heatmap_european.png",
         )
 
     print(f"Outputs saved to: {run_config.output_dir.resolve()}")
