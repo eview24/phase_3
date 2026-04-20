@@ -1,328 +1,212 @@
 """
-make_rf_video.py
-================
+Random Forest Regression Model — Equation Animation
+=====================================================
+Animates the equations of the random forest model, step by step.
 
-Generate a Random Forest explainer video, matched in style to the
-Bayesian Hierarchical explainer in our deck (black background,
-LaTeX-style math, layered equations that build up over time).
-
-Structure (57s at 15fps, 854x480):
-    Scene 0 (0-5s):   Title card
-    Scene 1 (5-15s):  Step 1 - Single decision tree
-    Scene 2 (15-25s): Step 2 - Bootstrap aggregation (bagging)
-    Scene 3 (25-34s): Step 3 - Feature subsampling at each split
-    Scene 4 (34-42s): Step 4 - League-aware features (hierarchy analog)
-    Scene 5 (42-49s): Step 5 - OOB residuals give prediction intervals
-    Scene 6 (49-57s): Full Model Summary (boxed, color-coded by layer)
-
-Each scene shows a step title at the top + stacked equations, with each
-newly-introduced layer in a distinct color. Older layers are carried
-forward in a faded-down version so the viewer sees the full stack grow.
-
-Requirements:
-    pip install matplotlib
-    ffmpeg on PATH (Ubuntu: `sudo apt-get install ffmpeg`,
-                    macOS:  `brew install ffmpeg`,
-                    Windows: https://ffmpeg.org/download.html)
-
-Run:
-    python make_rf_video.py
-    -> writes ./rf_video_frames/*.png (scratch) and ./rf_explainer.mp4
-
-Notes on LaTeX:
-    We use matplotlib's built-in `mathtext` (not a real TeX install) for
-    portability. mathtext doesn't support `\\bigl`, `\\bigr`, `\\tfrac`,
-    or negative spacing `\\!`; all math below is written to avoid those.
+RENDER:
+    manim -pql make_rf_video.py RandomForestModel
+    manim -pqh make_rf_video.py RandomForestModel   # high quality
 """
-from __future__ import annotations
 
-import shutil
-import subprocess
-import sys
-from pathlib import Path
-
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+from manim import *
 
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
-FPS = 15
-W_IN, H_IN = 8.54, 4.80   # inches @ 100dpi -> 854x480 pixels
-DPI = 100
+class RandomForestModel(Scene):
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-FRAMES_DIR = SCRIPT_DIR / "rf_video_frames"
-OUT_MP4    = SCRIPT_DIR / "rf_explainer.mp4"
+    def construct(self):
 
-# Color palette (matches the Bayesian video's layer-color scheme)
-C_BASE = "#FFFFFF"   # white      - base equation layer
-C_L1   = "#4DD0E1"   # cyan/teal  - step 2 additions (bagging / forest)
-C_L2   = "#E1BEE7"   # soft purple- step 3 additions (split sampling)
-C_L3   = "#FFB74D"   # orange     - step 4 additions (league features)
-C_L4   = "#A5D6A7"   # sage green - step 5 additions (OOB / intervals)
-C_SUB  = "#BDBDBD"   # muted grey - subtitles / captions
-C_STEP = "#E0E0E0"   # light grey - step title
+        # ── Helpers ──────────────────────────────────────────────────────────
+        def title_card(text, color=WHITE):
+            t = Text(text, font_size=28, color=color)
+            t.to_edge(UP, buff=0.3)
+            return t
 
-# Serif look without needing a system TeX install
-plt.rcParams.update({
-    "text.usetex": False,
-    "font.family": "serif",
-    "font.serif": ["DejaVu Serif", "Liberation Serif", "serif"],
-    "mathtext.fontset": "cm",   # Computer Modern (closest to Bayesian video)
-})
+        def label(text, font_size=24, color=GREY_B):
+            return Text(text, font_size=font_size, color=color)
 
+        # ── STEP 0: Intro title ──────────────────────────────────────────────
+        intro = Text("Random Forest Regression", font_size=40, color=WHITE)
+        subtitle = Text(
+            "How the model is built up, layer by layer.",
+            font_size=24, color=GREY_B,
+        )
+        subtitle.next_to(intro, DOWN, buff=0.3)
 
-# ---------------------------------------------------------------------------
-# Drawing helpers
-# ---------------------------------------------------------------------------
-def make_fig():
-    fig, ax = plt.subplots(figsize=(W_IN, H_IN), dpi=DPI, facecolor="black")
-    ax.set_facecolor("black")
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.axis("off")
-    return fig, ax
+        self.play(Write(intro), run_time=1.5)
+        self.play(FadeIn(subtitle, shift=DOWN * 0.2))
+        self.wait(2)
+        self.play(FadeOut(intro), FadeOut(subtitle))
 
+        # ── STEP 1: Single decision tree ─────────────────────────────────────
+        hdr = title_card("Step 1 — A Single Decision Tree")
+        self.play(FadeIn(hdr))
 
-def save_frame(fig, idx):
-    fig.savefig(FRAMES_DIR / f"f{idx:05d}.png",
-                dpi=DPI, facecolor="black", pad_inches=0)
-    plt.close(fig)
+        eq_tree = MathTex(
+            r"\hat{y}_i = T(\mathbf{x}_i)",
+            font_size=64,
+        )
+        eq_tree.center()
 
+        self.play(Write(eq_tree), run_time=2)
 
-def _step_title(ax, text, alpha=1.0):
-    ax.text(0.5, 0.93, text, ha="center", va="center",
-            fontsize=13, color=C_STEP, alpha=alpha, family="serif")
+        note1 = label(
+            "Each observation i is one club over one season.\n"
+            "One tree recursively splits the feature space into regions.\n",          
+            font_size=22,
+        )
+        note1.next_to(eq_tree, DOWN, buff=0.6)
+        self.play(FadeIn(note1, shift=DOWN * 0.2))
+        self.wait(3)
+        self.play(FadeOut(note1))
 
+        # ── STEP 2: Bootstrap aggregation (bagging) ──────────────────────────
+        hdr2 = title_card("Step 2 — Bootstrap Aggregation (Bagging)")
+        self.play(Transform(hdr, hdr2))
 
-# ---------------------------------------------------------------------------
-# Scenes — each takes show_new in [0, 1] which drives the fade-in
-# of the currently-introduced layer. Older layers are carried forward at
-# alpha 0.5-0.55 so they read as "still there but de-emphasised".
-# ---------------------------------------------------------------------------
-def scene_title(show_new=1.0):
-    fig, ax = make_fig()
-    ax.text(0.5, 0.58, "Random Forest Regression",
-            ha="center", va="center",
-            fontsize=30, color=C_BASE, alpha=show_new, family="serif")
-    ax.text(0.5, 0.44, "How the model is built up, layer by layer",
-            ha="center", va="center",
-            fontsize=14, color=C_SUB, alpha=show_new, family="serif",
-            style="italic")
-    return fig
+        self.play(
+            eq_tree.animate.to_edge(UP, buff=1.0).shift(DOWN * 0.4),
+            run_time=0.8,
+        )
 
+        eq_forest = MathTex(
+            r"\hat{y}_i = \frac{1}{B} \sum_{b=1}^{B} T_b\!\left(\mathbf{x}_i;\; \mathcal{D}^{(b)}\right)",
+            font_size=52,
+        )
+        eq_forest.set_color(BLUE)
+        eq_forest.next_to(eq_tree, DOWN, buff=0.9)
 
-def scene_step1(show_new=1.0):
-    """Single decision tree: y_i = T(x_i)"""
-    fig, ax = make_fig()
-    _step_title(ax, "Step 1 \u2014 A single decision tree")
-    ax.text(0.5, 0.55,
-            r"$\hat{y}_i = T(\mathbf{x}_i)$",
-            ha="center", va="center",
-            fontsize=36, color=C_BASE, alpha=show_new, family="serif")
-    ax.text(0.5, 0.32,
-            "One tree recursively splits the feature space into regions",
-            ha="center", va="center",
-            fontsize=11, color=C_SUB, alpha=show_new, family="serif",
-            style="italic")
-    return fig
+        self.play(Write(eq_forest), run_time=2)
 
+        note2 = label(
+            "Each tree trains on a bootstrap sample of the data, averaging across trees cancels noise.",
+            font_size=22,
+        )
+        note2.next_to(eq_forest, DOWN, buff=0.5)
+        self.play(FadeIn(note2, shift=DOWN * 0.2))
+        self.wait(2.5)
+        self.play(FadeOut(note2))
 
-def scene_step2(show_new=1.0):
-    """Bootstrap aggregation (bagging)."""
-    fig, ax = make_fig()
-    _step_title(ax, "Step 2 \u2014 Bootstrap aggregation (bagging)")
-    # Carry forward Step 1 (faded)
-    ax.text(0.5, 0.68,
-            r"$\hat{y}_i = T(\mathbf{x}_i)$",
-            ha="center", va="center",
-            fontsize=22, color=C_BASE, alpha=0.55, family="serif")
-    # New
-    ax.text(0.5, 0.46,
-            r"$\hat{y}_i = \frac{1}{B} \sum_{b=1}^{B} T_b\left(\mathbf{x}_i;\; \mathcal{D}^{(b)}\right)$",
-            ha="center", va="center",
-            fontsize=32, color=C_L1, alpha=show_new, family="serif")
-    ax.text(0.5, 0.22,
-            r"Each tree $T_b$ trains on a bootstrap sample "
-            r"$\mathcal{D}^{(b)}$; averaging cancels noise",
-            ha="center", va="center",
-            fontsize=11, color=C_SUB, alpha=show_new, family="serif",
-            style="italic")
-    return fig
+        # ── STEP 3: Feature subsampling at each split ─────────────────────────
+        hdr3 = title_card("Step 3 — Feature Subsampling at Each Split")
+        self.play(Transform(hdr, hdr3))
 
+        self.play(
+            FadeOut(eq_tree),
+            eq_forest.animate.to_edge(UP, buff=1.0).shift(DOWN * 0.4),
+            run_time=0.8,
+        )
 
-def scene_step3(show_new=1.0):
-    """Feature subsampling at each split."""
-    fig, ax = make_fig()
-    _step_title(ax, "Step 3 \u2014 Feature subsampling at each split")
-    # Forest equation carried forward
-    ax.text(0.5, 0.72,
-            r"$\hat{y}_i = \frac{1}{B} \sum_{b=1}^{B} T_b\left(\mathbf{x}_i;\; \mathcal{D}^{(b)}\right)$",
-            ha="center", va="center",
-            fontsize=22, color=C_L1, alpha=0.55, family="serif")
-    # New
-    ax.text(0.5, 0.48,
-            r"$\mathcal{S} \subset \{1,\ldots,p\},\quad |\mathcal{S}| = m_{\mathrm{try}}$",
-            ha="center", va="center",
-            fontsize=28, color=C_L2, alpha=show_new, family="serif")
-    ax.text(0.5, 0.30,
-            r"At each node, split using only $m_{\mathrm{try}}$ random "
-            r"features $\Rightarrow$ decorrelated trees",
-            ha="center", va="center",
-            fontsize=11, color=C_SUB, alpha=show_new, family="serif",
-            style="italic")
-    return fig
+        eq_mtry = MathTex(
+            r"\mathcal{S} \subset \{1, \ldots, p\}",
+            r"\qquad",
+            r"|\mathcal{S}| = m_{\text{try}}",
+            font_size=52,
+        )
+        eq_mtry.set_color(RED)
+        eq_mtry.next_to(eq_forest, DOWN, buff=0.9)
 
+        self.play(Write(eq_mtry), run_time=1.5)
 
-def scene_step4(show_new=1.0):
-    """League-aware features (one-hot) = hierarchy analog."""
-    fig, ax = make_fig()
-    _step_title(ax, "Step 4 \u2014 League-aware features (hierarchy analog)")
-    ax.text(0.5, 0.76,
-            r"$\hat{y}_i = \frac{1}{B} \sum_{b=1}^{B} T_b\left(\mathbf{x}_i;\; \mathcal{D}^{(b)}\right)$",
-            ha="center", va="center",
-            fontsize=20, color=C_L1, alpha=0.5, family="serif")
-    ax.text(0.5, 0.58,
-            r"$\mathcal{S} \subset \{1,\ldots,p\},\ |\mathcal{S}| = m_{\mathrm{try}}$",
-            ha="center", va="center",
-            fontsize=18, color=C_L2, alpha=0.5, family="serif")
-    # New augmented feature vector
-    ax.text(0.5, 0.38,
-            r"$\tilde{\mathbf{x}}_i \;=\; (\,\mathbf{x}_i\,,\; \mathrm{onehot}(g(i))\,)$",
-            ha="center", va="center",
-            fontsize=28, color=C_L3, alpha=show_new, family="serif")
-    ax.text(0.5, 0.18,
-            r"One-hot league indicators let trees split on league "
-            r"$\Rightarrow$ per-league structure",
-            ha="center", va="center",
-            fontsize=11, color=C_SUB, alpha=show_new, family="serif",
-            style="italic")
-    return fig
+        note3 = label(
+            "At each node only m_try randomly chosen features are considered for splitting.\n"
+            "This decorrelates the trees.",
+            font_size=22,
+        )
+        note3.next_to(eq_mtry, DOWN, buff=0.5)
+        self.play(FadeIn(note3, shift=DOWN * 0.2))
+        self.wait(2.5)
+        self.play(FadeOut(note3))
 
+        # ── STEP 4: League-aware features ────────────────────────────────────
+        hdr4 = title_card("Step 4 — League-Aware Features")
+        self.play(Transform(hdr, hdr4))
 
-def scene_step5(show_new=1.0):
-    """OOB residuals and prediction intervals."""
-    fig, ax = make_fig()
-    _step_title(ax, "Step 5 \u2014 Out-of-bag residuals give prediction intervals")
-    ax.text(0.5, 0.78,
-            r"$\hat{y}_i = \frac{1}{B} \sum_{b} T_b(\tilde{\mathbf{x}}_i;\ \mathcal{D}^{(b)})$",
-            ha="center", va="center",
-            fontsize=18, color=C_L1, alpha=0.5, family="serif")
-    ax.text(0.5, 0.58,
-            r"$r_i^{\mathrm{OOB}} \;=\; y_i - \frac{1}{|\mathcal{B}_i^{\,-}|} "
-            r"\sum_{b \notin \mathcal{B}_i} T_b(\tilde{\mathbf{x}}_i)$",
-            ha="center", va="center",
-            fontsize=22, color=C_L4, alpha=show_new, family="serif")
-    ax.text(0.5, 0.38,
-            r"$\hat{y}_i \pm z_{\alpha/2}\,\hat{\sigma}_{\mathrm{OOB}}$",
-            ha="center", va="center",
-            fontsize=24, color=C_L4, alpha=show_new, family="serif")
-    ax.text(0.5, 0.18,
-            r"Residuals from trees that didn't see row $i$ give a free, honest interval",
-            ha="center", va="center",
-            fontsize=11, color=C_SUB, alpha=show_new, family="serif",
-            style="italic")
-    return fig
+        self.play(
+            FadeOut(eq_forest),
+            eq_mtry.animate.to_edge(UP, buff=1.0).shift(DOWN * 0.4),
+            run_time=0.8,
+        )
 
+        eq_league = MathTex(
+            r"\tilde{\mathbf{x}}_i = \bigl(\mathbf{x}_i,\; \mathrm{onehot}(g(i))\bigr)",
+            font_size=52,
+        )
+        eq_league.set_color(GREEN)
+        eq_league.next_to(eq_mtry, DOWN, buff=0.9)
 
-def scene_summary(show_new=1.0):
-    """Full Model Summary with boxed stacked equations."""
-    fig, ax = make_fig()
-    ax.text(0.5, 0.92, "Full Model Summary",
-            ha="center", va="center",
-            fontsize=22, color=C_BASE, alpha=show_new, family="serif")
+        self.play(Write(eq_league), run_time=1.5)
 
-    box_x, box_y = 0.14, 0.12
-    box_w, box_h = 0.72, 0.66
-    ax.add_patch(Rectangle((box_x, box_y), box_w, box_h,
-                           edgecolor=C_BASE, facecolor="none",
-                           linewidth=1.2, alpha=show_new))
+        note4 = label(
+            "One-hot league indicators let trees split on league.",
+            font_size=22,
+        )
+        note4.next_to(eq_league, DOWN, buff=0.5)
+        self.play(FadeIn(note4, shift=DOWN * 0.2))
+        self.wait(2.5)
+        self.play(FadeOut(note4))
 
-    # Each equation drawn in its "introduced" colour
-    eqs = [
-        (r"$\hat{y}_i = T(\mathbf{x}_i)$", C_BASE),
-        (r"$\hat{y}_i = \frac{1}{B} \sum_{b=1}^{B} T_b(\mathbf{x}_i;\, \mathcal{D}^{(b)})$", C_L1),
-        (r"$\mathcal{S} \subset \{1,\ldots,p\},\ |\mathcal{S}| = m_{\mathrm{try}}$", C_L2),
-        (r"$\tilde{\mathbf{x}}_i = (\mathbf{x}_i,\, \mathrm{onehot}(g(i)))$", C_L3),
-        (r"$r_i^{\mathrm{OOB}} = y_i - \frac{1}{|\mathcal{B}_i^{-}|}"
-         r"\sum_{b \notin \mathcal{B}_i} T_b(\tilde{\mathbf{x}}_i)$", C_L4),
-        (r"$\hat{y}_i \pm z_{\alpha/2}\,\hat{\sigma}_{\mathrm{OOB}}$", C_L4),
-    ]
-    n = len(eqs)
-    top = box_y + box_h - 0.06
-    bot = box_y + 0.06
-    ys = [top - i * (top - bot) / (n - 1) for i in range(n)]
-    for (eq, col), y in zip(eqs, ys):
-        ax.text(box_x + 0.04, y, eq, ha="left", va="center",
-                fontsize=14, color=col, alpha=show_new, family="serif")
-    return fig
+        # ── STEP 5: OOB residuals and prediction intervals ───────────────────
+        hdr5 = title_card("Step 5 — Out-of-Bag Residuals & Prediction Intervals")
+        self.play(Transform(hdr, hdr5))
 
+        self.play(
+            FadeOut(eq_mtry),
+            eq_league.animate.to_edge(UP, buff=1.0).shift(DOWN * 0.4),
+            run_time=0.8,
+        )
 
-# ---------------------------------------------------------------------------
-# Timeline: (scene_fn, duration_s, fade_in_s)
-# ---------------------------------------------------------------------------
-TIMELINE = [
-    (scene_title,   5.0, 0.6),
-    (scene_step1,  10.0, 0.8),
-    (scene_step2,  10.0, 0.9),
-    (scene_step3,   9.0, 0.9),
-    (scene_step4,   8.0, 0.9),
-    (scene_step5,   7.0, 0.9),
-    (scene_summary, 8.0, 1.2),
-]
+        eq_oob = MathTex(
+            r"r_i^{\text{OOB}} = y_i - \frac{1}{|\mathcal{B}_i^{-}|} \sum_{b \notin \mathcal{B}_i} T_b(\tilde{\mathbf{x}}_i)",
+            font_size=40,
+        )
+        eq_oob.set_color(YELLOW)
+        eq_oob.next_to(eq_league, DOWN, buff=0.8)
 
+        eq_interval = MathTex(
+            r"\hat{y}_i \;\pm\; z_{\alpha/2}\, \hat{\sigma}_{\text{OOB}}",
+            font_size=48,
+        )
+        eq_interval.set_color(YELLOW)
+        eq_interval.next_to(eq_oob, DOWN, buff=0.6)
 
-# ---------------------------------------------------------------------------
-# Main — render frames, stitch with ffmpeg
-# ---------------------------------------------------------------------------
-def main():
-    if shutil.which("ffmpeg") is None:
-        sys.exit("ERROR: ffmpeg not found on PATH. Install it and retry.")
+        self.play(Write(eq_oob), run_time=2)
+        self.play(Write(eq_interval), run_time=1.5)
 
-    # Fresh frame directory each run
-    if FRAMES_DIR.exists():
-        for f in FRAMES_DIR.glob("*.png"):
-            f.unlink()
-    else:
-        FRAMES_DIR.mkdir(parents=True)
+        note5 = label(
+            "Residuals from trees that didn't see row i give a free, honest interval.",
+            font_size=22,
+        )
+        note5.next_to(eq_interval, DOWN, buff=0.5)
+        self.play(FadeIn(note5, shift=DOWN * 0.2))
+        self.wait(2.5)
+        self.play(FadeOut(note5), FadeOut(eq_league), FadeOut(eq_oob), FadeOut(eq_interval), FadeOut(hdr))
 
-    total_s = sum(d for _, d, _ in TIMELINE)
-    total_frames = int(total_s * FPS)
-    print(f"Rendering {total_frames} frames ({total_s:.1f}s at {FPS}fps)...")
+        # ── FINAL: Full Model Summary ─────────────────────────────────────────
+        summary_title = Text("Full Model Summary", font_size=36, color=WHITE)
+        summary_title.to_edge(UP, buff=0.3)
+        self.play(FadeIn(summary_title))
 
-    frame_idx = 0
-    for scene_fn, dur_s, fade_s in TIMELINE:
-        n_frames = int(dur_s * FPS)
-        n_fade = max(1, int(fade_s * FPS))
-        for k in range(n_frames):
-            alpha = (k / n_fade) if k < n_fade else 1.0
-            fig = scene_fn(show_new=alpha)
-            save_frame(fig, frame_idx)
-            frame_idx += 1
-    print(f"Wrote {frame_idx} frames to {FRAMES_DIR}")
+        lines = [
+            (r"\hat{y}_i = T(\mathbf{x}_i)", WHITE),
+            (r"\hat{y}_i = \frac{1}{B} \sum_{b=1}^{B} T_b(\mathbf{x}_i;\; \mathcal{D}^{(b)})", BLUE),
+            (r"\mathcal{S} \subset \{1,\ldots,p\}, \quad |\mathcal{S}| = m_{\text{try}}", RED),
+            (r"\tilde{\mathbf{x}}_i = \bigl(\mathbf{x}_i,\; \mathrm{onehot}(g(i))\bigr)", GREEN),
+            (r"r_i^{\text{OOB}} = y_i - \frac{1}{|\mathcal{B}_i^{-}|}\sum_{b \notin \mathcal{B}_i} T_b(\tilde{\mathbf{x}}_i)", YELLOW),
+            (r"\hat{y}_i \pm z_{\alpha/2}\,\hat{\sigma}_{\text{OOB}}", YELLOW),
+        ]
 
-    # Stitch into H.264 mp4 (854x480, baseline profile for max compatibility,
-    # matches the Bayesian video's codec settings for in-PowerPoint playback)
-    cmd = [
-        "ffmpeg", "-y",
-        "-framerate", str(FPS),
-        "-i", str(FRAMES_DIR / "f%05d.png"),
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-vf", "scale=854:480",
-        "-profile:v", "baseline", "-level", "3.0",
-        "-movflags", "+faststart",
-        str(OUT_MP4),
-    ]
-    print("Encoding video...")
-    subprocess.run(cmd, check=True, capture_output=True)
-    size_kb = OUT_MP4.stat().st_size / 1024
-    print(f"Done -> {OUT_MP4}  ({size_kb:.0f} KB)")
+        summary = VGroup(*[
+            MathTex(line, font_size=26).set_color(col)
+            for line, col in lines
+        ])
+        summary.arrange(DOWN, aligned_edge=LEFT, buff=0.32)
+        summary.center()
 
+        self.play(
+            LaggedStart(*[Write(line) for line in summary], lag_ratio=0.4),
+            run_time=3,
+        )
 
-if __name__ == "__main__":
-    main()
+        box = SurroundingRectangle(summary, color=BLUE_B, buff=0.25, stroke_width=2)
+        self.play(Create(box))
+        self.wait(3)
