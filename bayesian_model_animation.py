@@ -25,20 +25,13 @@ class BayesianHierarchicalModel(Scene):
         def label(text, font_size=24, color=GREY_B):
             return Text(text, font_size=font_size, color=color)
 
-        def show_title(scene, new_title, old_title=None):
-            if old_title:
-                scene.play(Transform(old_title, new_title), run_time=0.5)
-            else:
-                scene.play(FadeIn(new_title, shift=UP * 0.2))
-            return new_title
-
         # ── STEP 0: Intro title ──────────────────────────────────────────────
         intro = Text(
             "Bayesian Hierarchical Regression",
             font_size=40, color=WHITE,
         )
         subtitle = Text(
-            "How the model is built up, layer by layer",
+            "How the model is built up, layer by layer.",
             font_size=24, color=GREY_B,
         )
         subtitle.next_to(intro, DOWN, buff=0.3)
@@ -58,7 +51,7 @@ class BayesianHierarchicalModel(Scene):
         )
         eq_likelihood.set_color(WHITE)
 
-        note1 = label("Each observation i is one club over one season")
+        note1 = label("Each observation i is one club over one season.")
         note1.next_to(eq_likelihood, DOWN, buff=0.6)
 
         self.play(Write(eq_likelihood), run_time=1.5)
@@ -91,7 +84,7 @@ class BayesianHierarchicalModel(Scene):
         )
         self.wait(0.5)
 
-        note2 = label("g(i) = league of observation i   |   each league gets its own α and β")
+        note2 = label("g(i) = league of observation i   |   each league gets its own α and β.")
         note2.next_to(eq_mu, DOWN, buff=0.5)
         self.play(FadeIn(note2, shift=DOWN * 0.2))
         self.wait(2.5)
@@ -127,7 +120,7 @@ class BayesianHierarchicalModel(Scene):
 
         self.play(Write(eq_priors), run_time=2)
 
-        note3 = label("Leagues share information through common hyperparameters")
+        note3 = label("Leagues share information through common hyperparameters.")
         note3.next_to(eq_priors, DOWN, buff=0.5)
         self.play(FadeIn(note3, shift=DOWN * 0.2))
         self.wait(2.5)
@@ -191,7 +184,7 @@ class BayesianHierarchicalModel(Scene):
 
         self.play(Write(eq_hyper_beta), run_time=2)
 
-        note5 = label("A further level of hierarchy governs the slopes")
+        note5 = label("A further level of hierarchy governs the slopes.")
         note5.next_to(eq_hyper_beta, DOWN, buff=0.5)
         self.play(FadeIn(note5, shift=DOWN * 0.2))
         self.wait(1.5)
@@ -223,10 +216,10 @@ class BayesianHierarchicalModel(Scene):
         colours = [WHITE, YELLOW, GREEN, PINK, ORANGE, YELLOW]
         
         summary = VGroup(*[
-            MathTex(line, font_size=32).set_color(col)
+            MathTex(line, font_size=26).set_color(col)
             for line, col in zip(lines, colours)
         ])
-        summary.arrange(DOWN, aligned_edge=LEFT, buff=0.3)
+        summary.arrange(DOWN, aligned_edge=LEFT, buff=0.32)
         summary.center()
                
 
